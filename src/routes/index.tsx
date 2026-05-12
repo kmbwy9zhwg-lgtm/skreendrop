@@ -225,6 +225,7 @@ function Home() {
                 }}
                 className="font-medium text-neutral-200 hover:text-white underline decoration-dotted underline-offset-4"
                 title="Click to rename"
+                suppressHydrationWarning
               >
                 {deviceName}
               </button>
