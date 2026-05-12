@@ -46,11 +46,17 @@ export default function StreamChat({
   const [isRecording, setIsRecording] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [tagColor, setTagColor] = useState<"none" | "red" | "yellow" | "green" | "blue">("none");
+  const [filterTag, setFilterTag] = useState<"all" | "red" | "yellow" | "green" | "blue">("all");
   const [notification, setNotification] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const filteredMessages =
+    filterTag === "all"
+      ? messages
+      : messages.filter((m) => m.tagColor === filterTag);
+
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
@@ -131,11 +137,6 @@ export default function StreamChat({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
-
-  useEffect(() => {
-    const el = listRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, open]);
 
   const send = () => {
     const t = text.trim();
@@ -276,7 +277,7 @@ export default function StreamChat({
     <aside
       className={`${
         open ? "translate-x-0" : "translate-x-full"
-      } fixed lg:static top-0 right-0 z-40 h-full lg:h-auto lg:translate-x-0 w-full sm:w-80 lg:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col transition-transform duration-200 ${
+      } fixed lg:static top-0 right-0 z-40 h-full lg:h-full lg:translate-x-0 w-full sm:w-80 lg:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col transition-transform duration-200 ${
         open ? "" : "lg:hidden"
       }`}
     >
@@ -295,13 +296,32 @@ export default function StreamChat({
           {notification}
         </div>
       )}
+      <div className="px-3 py-2 border-b border-neutral-800">
+        <div className="flex flex-wrap gap-2 text-xs text-neutral-400">
+          <span>Filter:</span>
+          {(["all", "red", "yellow", "green", "blue"] as const).map((color) => (
+            <button
+              key={color}
+              type="button"
+              onClick={() => setFilterTag(color)}
+              className={`rounded-full px-2 py-1 transition ${
+                filterTag === color
+                  ? "bg-white text-black"
+                  : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+              }`}
+            >
+              {color === "all" ? "All" : color}
+            </button>
+          ))}
+        </div>
+      </div>
       <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
-        {messages.length === 0 ? (
+        {filteredMessages.length === 0 ? (
           <p className="text-xs text-neutral-500 text-center mt-4">
             No messages yet. Say hi 👋
           </p>
         ) : (
-          messages.map((m) => (
+          filteredMessages.map((m) => (
             <div
               key={m.id}
               ref={(el) => {
@@ -321,7 +341,7 @@ export default function StreamChat({
                     {m.name}
                   </div>
                   {m.tagColor && (
-                    <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${tagColorClasses[m.tagColor]}`}>
+                    <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${tagColorClasses[m.tagColor as "red" | "yellow" | "green" | "blue"]}`}>
                       {m.tagColor}
                     </span>
                   )}
@@ -455,7 +475,7 @@ export default function StreamChat({
           </button>
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               const video = document.querySelector("video");
               if (video && video.videoWidth && video.videoHeight) {
                 const canvas = document.createElement("canvas");
@@ -464,29 +484,36 @@ export default function StreamChat({
                 const ctx = canvas.getContext("2d");
                 if (!ctx) return;
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                canvas.toBlob((blob) => {
+                canvas.toBlob(async (blob) => {
                   if (!blob) return;
-                  const file = new File([blob], `screenshot-${Date.now()}.png`, {
-                    type: "image/png",
-                  });
+                  const fileName = `screenshot-${Date.now()}.png`;
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = file.name;
+                  a.download = fileName;
                   document.body.appendChild(a);
                   a.click();
                   a.remove();
                   URL.revokeObjectURL(url);
-                  sendFile(file);
+
+                  if (navigator.clipboard && typeof ClipboardItem !== "undefined") {
+                    try {
+                      await navigator.clipboard.write([
+                        new ClipboardItem({ [blob.type]: blob }),
+                      ]);
+                    } catch (error) {
+                      console.warn("Clipboard image copy failed", error);
+                    }
+                  }
                 });
               }
             }}
             className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
-            title="Take screenshot"
+            title="Save screenshot and copy to clipboard"
           >
             📸
           </button>
-          {canTag && (
+          {canTag && replyTo && (
             <div className="flex items-center gap-1">
               {["red", "yellow", "green", "blue"].map((color) => (
                 <button
