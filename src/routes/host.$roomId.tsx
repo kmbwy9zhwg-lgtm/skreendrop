@@ -236,45 +236,59 @@ function HostPage() {
     setTimeout(() => setCopied(false), 1500);
   }
 
+  const [chatOpen, setChatOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const [selfId, setSelfId] = useState("");
+  const [selfName, setSelfName] = useState("Host");
+  useEffect(() => {
+    setSelfId(getDeviceId());
+    setSelfName(getDeviceName());
+  }, []);
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 p-6">
-      <div className="max-w-4xl mx-auto">
-        <header className="flex items-center justify-between mb-6">
-          <Link to="/" className="text-2xl font-semibold tracking-tight">
-            ScreenDrop
-          </Link>
-          <span className="text-xs text-neutral-500">Host</span>
-        </header>
+    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
+      <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-900">
+        <Link to="/" className="text-lg font-semibold tracking-tight">
+          ScreenDrop
+        </Link>
+        <div className="flex items-center gap-3 text-xs text-neutral-400">
+          <span className="font-mono">{roomId}</span>
+          <span>·</span>
+          <span>
+            <span className="text-white font-medium">{viewerCount}</span> viewer
+            {viewerCount === 1 ? "" : "s"}
+          </span>
+          <button
+            onClick={() => setChatOpen((o) => !o)}
+            className="lg:hidden relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+          >
+            Chat
+            {unread > 0 && !chatOpen && (
+              <span className="absolute -top-1 -right-1 bg-emerald-500 text-black text-[10px] font-bold rounded-full px-1.5">
+                {unread}
+              </span>
+            )}
+          </button>
+        </div>
+      </header>
 
-        <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-6 space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-xs uppercase tracking-wide text-neutral-500">
-                Room
-              </div>
-              <div className="font-mono text-lg">{roomId}</div>
-            </div>
-            <div className="text-sm text-neutral-400">
-              Viewers:{" "}
-              <span className="text-white font-medium">{viewerCount}</span>
-            </div>
-          </div>
-
+      <div className="flex-1 flex min-h-0">
+        <main className="flex-1 flex flex-col min-w-0 p-3 sm:p-4 gap-3">
           <div className="flex flex-wrap gap-2">
             <input
               readOnly
               value={shareUrl}
-              className="flex-1 min-w-0 rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm font-mono"
+              className="flex-1 min-w-0 rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm font-mono"
             />
             <button
               onClick={copyLink}
-              className="px-4 rounded-lg bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 text-sm"
+              className="px-4 rounded-lg bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 text-sm"
             >
               {copied ? "Copied!" : "Copy link"}
             </button>
           </div>
 
-          <div className="aspect-video rounded-xl bg-black overflow-hidden flex items-center justify-center">
+          <div className="flex-1 bg-black rounded-xl overflow-hidden flex items-center justify-center min-h-[240px]">
             {stream ? (
               <video
                 ref={videoRef}
@@ -305,7 +319,29 @@ function HostPage() {
           )}
 
           {error && <div className="text-sm text-red-400">{error}</div>}
+        </main>
+
+        <div className="hidden lg:flex">
+          <StreamChat
+            roomId={roomId}
+            selfId={selfId || "anon"}
+            selfName={selfName}
+            open={true}
+            onClose={() => {}}
+            onUnread={setUnread}
+          />
         </div>
+      </div>
+
+      <div className="lg:hidden">
+        <StreamChat
+          roomId={roomId}
+          selfId={selfId || "anon"}
+          selfName={selfName}
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          onUnread={setUnread}
+        />
       </div>
     </div>
   );
