@@ -1,7 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ICE_SERVERS, makePeerId } from "@/lib/webrtc";
+import { getDeviceId, getDeviceName } from "@/lib/device";
+import { getNetworkId } from "@/lib/network.functions";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/host/$roomId")({
@@ -20,6 +23,38 @@ function HostPage() {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const hostIdRef = useRef<string>(makePeerId());
+  const fetchNetworkId = useServerFn(getNetworkId);
+
+  // Broadcast presence on the local-network lobby so nearby devices
+  // can discover this stream with one click.
+  useEffect(() => {
+    let cancelled = false;
+    let lobby: RealtimeChannel | null = null;
+    const deviceId = getDeviceId();
+    const deviceName = getDeviceName();
+    (async () => {
+      const { networkId } = await fetchNetworkId();
+      if (cancelled) return;
+      lobby = supabase.channel(`lobby:${networkId}`, {
+        config: { presence: { key: deviceId } },
+      });
+      lobby.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await lobby!.track({
+            deviceId,
+            deviceName,
+            sharing: true,
+            roomId,
+          });
+        }
+      });
+    })();
+    return () => {
+      cancelled = true;
+      if (lobby) supabase.removeChannel(lobby);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   const shareUrl =
     typeof window !== "undefined"
