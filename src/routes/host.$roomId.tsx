@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ICE_SERVERS, makePeerId } from "@/lib/webrtc";
 import { getDeviceId, getDeviceName, getDeviceType } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
+import StreamChat from "@/components/StreamChat";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/host/$roomId")({
