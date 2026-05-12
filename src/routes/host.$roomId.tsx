@@ -31,6 +31,7 @@ function HostPage() {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const viewerShareSourcesRef = useRef<Map<string, { stream: MediaStream; ownerId: string; ownerName: string; label: string }>>(new Map());
   const hostIdRef = useRef<string>(makePeerId());
   const fetchNetworkId = useServerFn(getNetworkId);
 
@@ -91,6 +92,34 @@ function HostPage() {
       : "";
 
   // ---------- Helpers ----------
+  function broadcastShareSources() {
+    const sources: Array<{ id: string; ownerId: string; ownerName: string; label: string }> = [];
+
+    if (screenStreamRef.current) {
+      sources.push({
+        id: screenStreamRef.current.id,
+        ownerId: hostIdRef.current,
+        ownerName: getDeviceName(),
+        label: "Host screen",
+      });
+    }
+
+    viewerShareSourcesRef.current.forEach((info, id) => {
+      sources.push({
+        id,
+        ownerId: info.ownerId,
+        ownerName: info.ownerName,
+        label: info.label,
+      });
+    });
+
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "share-meta",
+      payload: { sources },
+    });
+  }
+
   function broadcastMeta() {
     channelRef.current?.send({
       type: "broadcast",
@@ -101,9 +130,10 @@ function HostPage() {
         camId: camStreamRef.current?.id ?? null,
       },
     });
+    broadcastShareSources();
   }
 
-  function syncTracks(pc: RTCPeerConnection) {
+  function syncTracks(pc: RTCPeerConnection, viewerId?: string) {
     const desired: Array<{ track: MediaStreamTrack; stream: MediaStream }> = [];
     const ss = screenStreamRef.current;
     if (ss) {
@@ -117,6 +147,11 @@ function HostPage() {
       const micStream = ss ?? new MediaStream([micTrackRef.current]);
       desired.push({ track: micTrackRef.current, stream: micStream });
     }
+
+    viewerShareSourcesRef.current.forEach((info) => {
+      if (info.ownerId === viewerId) return;
+      info.stream.getTracks().forEach((t) => desired.push({ track: t, stream: info.stream }));
+    });
 
     for (const sender of pc.getSenders()) {
       if (!desired.find((d) => d.track === sender.track)) {
@@ -178,22 +213,51 @@ function HostPage() {
     pc.ontrack = (e) => {
       const stream = e.streams[0];
       if (!stream) return;
-      let audio = audioElementsRef.current.get(viewerId);
-      if (!audio) {
-        audio = document.createElement("audio");
-        audio.autoplay = true;
-        audio.hidden = true;
-        audioElementsRef.current.set(viewerId, audio);
-        document.body.appendChild(audio);
+      const ownerName = viewers.find((v) => v.id === viewerId)?.name ?? "Viewer";
+      const hasVideo = stream.getVideoTracks().length > 0;
+      if (hasVideo && !viewerShareSourcesRef.current.has(stream.id)) {
+        const clonedTracks = stream.getTracks().map((track) => track.clone());
+        const clonedStream = new MediaStream(clonedTracks);
+        viewerShareSourcesRef.current.set(stream.id, {
+          stream: clonedStream,
+          ownerId: viewerId,
+          ownerName,
+          label: `${ownerName} screen`,
+        });
+        broadcastMeta();
+        renegotiateAll();
+
+        stream.onremovetrack = () => {
+          if (stream.getVideoTracks().length === 0) {
+            const info = viewerShareSourcesRef.current.get(stream.id);
+            if (info) {
+              info.stream.getTracks().forEach((track) => track.stop());
+            }
+            viewerShareSourcesRef.current.delete(stream.id);
+            broadcastMeta();
+            renegotiateAll();
+          }
+        };
       }
-      audio.srcObject = stream;
+
+      if (stream.getAudioTracks().length > 0) {
+        let audio = audioElementsRef.current.get(viewerId);
+        if (!audio) {
+          audio = document.createElement("audio");
+          audio.autoplay = true;
+          audio.hidden = true;
+          audioElementsRef.current.set(viewerId, audio);
+          document.body.appendChild(audio);
+        }
+        audio.srcObject = stream;
+      }
     };
 
     return pc;
   }
 
   async function sendOfferTo(viewerId: string, pc: RTCPeerConnection) {
-    syncTracks(pc);
+    syncTracks(pc, viewerId);
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     channelRef.current?.send({
@@ -252,7 +316,7 @@ function HostPage() {
         await pc.setRemoteDescription(new RTCSessionDescription(data));
       } else if (data.type === "offer") {
         const pc = createPeerConnection(from);
-        syncTracks(pc);
+        syncTracks(pc, from);
         await pc.setRemoteDescription(new RTCSessionDescription(data));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -280,7 +344,15 @@ function HostPage() {
         peersRef.current.delete(id);
         setViewerCount(peersRef.current.size);
       }
-      setViewers(prev => prev.filter(v => v.id !== id));
+      viewerShareSourcesRef.current.forEach((info, streamId) => {
+        if (info.ownerId === id) {
+          info.stream.getTracks().forEach((track) => track.stop());
+          viewerShareSourcesRef.current.delete(streamId);
+        }
+      });
+      setViewers((prev) => prev.filter((v) => v.id !== id));
+      broadcastMeta();
+      renegotiateAll();
     });
 
     channel.subscribe(async (status) => {
@@ -311,36 +383,7 @@ function HostPage() {
 
   async function createOfferFor(viewerId: string) {
     if (peersRef.current.has(viewerId)) return;
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    peersRef.current.set(viewerId, pc);
-    setViewerCount(peersRef.current.size);
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        channelRef.current?.send({
-          type: "broadcast",
-          event: "signal",
-          payload: {
-            from: hostIdRef.current,
-            to: viewerId,
-            data: e.candidate.toJSON(),
-          },
-        });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (
-        pc.connectionState === "failed" ||
-        pc.connectionState === "closed" ||
-        pc.connectionState === "disconnected"
-      ) {
-        pc.close();
-        peersRef.current.delete(viewerId);
-        setViewerCount(peersRef.current.size);
-      }
-    };
-
+    const pc = createPeerConnection(viewerId);
     await sendOfferTo(viewerId, pc);
     broadcastMeta();
   }
@@ -440,7 +483,7 @@ function HostPage() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
   const [viewersOpen, setViewersOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [selfId, setSelfId] = useState("");
@@ -467,7 +510,7 @@ function HostPage() {
           </span>
           <button
             onClick={() => setChatOpen((o) => !o)}
-            className="lg:hidden relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+            className="relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
           >
             Chat
             {unread > 0 && !chatOpen && (
@@ -604,8 +647,8 @@ function HostPage() {
             roomId={roomId}
             selfId={selfId || "anon"}
             selfName={selfName}
-            open={true}
-            onClose={() => {}}
+            open={chatOpen}
+            onClose={() => setChatOpen(false)}
             onUnread={setUnread}
             canTag={true}
             participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
