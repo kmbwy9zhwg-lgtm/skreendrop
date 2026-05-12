@@ -16,6 +16,7 @@ export type ChatMessage = {
   replyText?: string; // Preview text of replied message
   replyName?: string; // Name of person who sent the replied message
   taggedUsers?: string[]; // Array of user names that were tagged
+  tagColor?: "red" | "yellow" | "green" | "blue";
 };
 
 type Props = {
@@ -25,6 +26,8 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onUnread?: (n: number) => void;
+  canTag?: boolean;
+  participants?: string[];
 };
 
 export default function StreamChat({
@@ -34,20 +37,32 @@ export default function StreamChat({
   open,
   onClose,
   onUnread,
+  canTag = false,
+  participants = [],
 }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [tagColor, setTagColor] = useState<"none" | "red" | "yellow" | "green" | "blue">("none");
   const [notification, setNotification] = useState<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
+  const highlightTimerRef = useRef<number | null>(null);
   const unreadRef = useRef(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const tagColorClasses: Record<Exclude<ChatMessage["tagColor"], undefined>, string> = {
+    red: "bg-red-500/15 text-red-300 border border-red-500/30",
+    yellow: "bg-yellow-400/15 text-yellow-300 border border-yellow-400/30",
+    green: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/30",
+    blue: "bg-sky-500/15 text-sky-300 border border-sky-500/30",
+  };
 
   useEffect(() => {
     const ch = supabase.channel(`chat:${roomId}`, {
@@ -80,7 +95,31 @@ export default function StreamChat({
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [roomId, selfId]);
+  }, [roomId, selfId, selfName]);
+
+  const scrollToMessage = (id: string) => {
+    const el = messageRefs.current[id];
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedMessageId(id);
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedMessageId(null);
+    }, 2200);
+  };
+
+  useEffect(() => {
+    if (!open || messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    const lastEl = lastMessage ? messageRefs.current[lastMessage.id] : null;
+    if (lastEl) {
+      lastEl.scrollIntoView({ behavior: "smooth", block: "end" });
+    } else if (listRef.current) {
+      listRef.current.scrollTop = listRef.current.scrollHeight;
+    }
+  }, [messages, open]);
 
   useEffect(() => {
     if (open) {
@@ -103,7 +142,7 @@ export default function StreamChat({
     if (!t) return;
 
     // Parse tagged users (@username)
-    const taggedUsers = [];
+    const taggedUsers: string[] = [];
     const mentionRegex = /@(\w+)/g;
     let match;
     while ((match = mentionRegex.exec(t)) !== null) {
@@ -120,11 +159,13 @@ export default function StreamChat({
       replyText: replyTo?.text,
       replyName: replyTo?.name,
       taggedUsers: taggedUsers.length > 0 ? taggedUsers : undefined,
+      tagColor: canTag && tagColor !== "none" ? tagColor : undefined,
     };
     channelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
     setMessages((prev) => [...prev, { ...msg, self: true }]);
     setText("");
     setReplyTo(null);
+    setTagColor("none");
   };
 
   const sendFile = async (file: File) => {
@@ -154,11 +195,13 @@ export default function StreamChat({
       replyTo: replyTo?.id,
       replyText: replyTo?.text,
       replyName: replyTo?.name,
+      tagColor: canTag && tagColor !== "none" ? tagColor : undefined,
     };
     channelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
     setMessages((prev) => [...prev, { ...msg, self: true }]);
     fileInputRef.current && (fileInputRef.current.value = "");
     setReplyTo(null);
+    setTagColor("none");
   };
 
   const onChange = (v: string) => {
@@ -221,10 +264,12 @@ export default function StreamChat({
       replyTo: replyTo?.id,
       replyText: replyTo?.text,
       replyName: replyTo?.name,
+      tagColor: canTag && tagColor !== "none" ? tagColor : undefined,
     };
     channelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
     setMessages((prev) => [...prev, { ...msg, self: true }]);
     setReplyTo(null);
+    setTagColor("none");
   };
 
   return (
@@ -259,30 +304,43 @@ export default function StreamChat({
           messages.map((m) => (
             <div
               key={m.id}
-              className={`group max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
+              ref={(el) => {
+                messageRefs.current[m.id] = el;
+              }}
+              className={`group max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words border ${
                 m.self
-                  ? "ml-auto bg-white text-black"
-                  : "bg-neutral-800 text-neutral-100"
+                  ? "ml-auto bg-white text-black border-white/10"
+                  : "bg-neutral-800 text-neutral-100 border-neutral-800"
+              } ${
+                highlightedMessageId === m.id ? "ring-2 ring-amber-400 bg-amber-400/10" : ""
               }`}
             >
-              {!m.self && (
-                <div className="flex items-center justify-between mb-0.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-2">
                   <div className="text-[10px] uppercase tracking-wide text-neutral-400">
                     {m.name}
                   </div>
-                  <button
-                    onClick={() => setReplyTo(m)}
-                    className="text-[10px] text-neutral-400 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Reply"
-                  >
-                    ↩️
-                  </button>
+                  {m.tagColor && (
+                    <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full ${tagColorClasses[m.tagColor]}`}>
+                      {m.tagColor}
+                    </span>
+                  )}
                 </div>
-              )}
+                <button
+                  onClick={() => setReplyTo(m)}
+                  className="text-[10px] text-neutral-400 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Reply"
+                >
+                  ↩️
+                </button>
+              </div>
               {m.replyTo && m.replyText && (
-                <div className={`mb-2 p-2 rounded text-xs ${
-                  m.self ? "bg-black/20" : "bg-neutral-700"
-                }`}>
+                <div
+                  onClick={() => m.replyTo && scrollToMessage(m.replyTo)}
+                  className={`mb-2 p-2 rounded text-xs cursor-pointer ${
+                    m.self ? "bg-black/20" : "bg-neutral-700 hover:bg-neutral-600"
+                  }`}
+                >
                   <div className="text-neutral-400">Replying to {m.replyName}:</div>
                   <div className="truncate">{m.replyText}</div>
                 </div>
@@ -319,6 +377,27 @@ export default function StreamChat({
       <div className="px-3 h-5 text-xs text-neutral-500">
         {typingUser ? `${typingUser} is typing…` : ""}
       </div>
+      {participants.length > 0 && (
+        <div className="px-3 py-2 bg-neutral-900 border-t border-neutral-700 text-xs text-neutral-300">
+          <div className="mb-1 text-neutral-400">Tag people:</div>
+          <div className="flex flex-wrap gap-2">
+            {Array.from(new Set(participants)).map((participant) => (
+              <button
+                key={participant}
+                type="button"
+                onClick={() => {
+                  const mention = `@${participant}`;
+                  if (text.includes(mention)) return;
+                  setText((current) => `${current}${current.endsWith(" ") || current === "" ? "" : " "}${mention} `);
+                }}
+                className="rounded-full border border-neutral-700 px-2 py-1 text-[11px] text-neutral-200 hover:border-white hover:text-white"
+              >
+                {participant}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {replyTo && (
         <div className="px-3 py-2 bg-neutral-800 border-t border-neutral-700">
           <div className="flex items-center justify-between text-xs">
@@ -341,75 +420,120 @@ export default function StreamChat({
           e.preventDefault();
           send();
         }}
-        className="p-3 border-t border-neutral-800 flex gap-2"
+        className="p-3 border-t border-neutral-800 flex flex-col gap-2"
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) {
-              sendFile(file);
-            }
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
-        >
-          📎
-        </button>
-        <button
-          type="button"
-          onClick={isRecording ? stopRecording : startRecording}
-          className={`px-3 rounded-lg text-sm ${
-            isRecording
-              ? "bg-red-500 text-white animate-pulse"
-              : "bg-neutral-800 border border-neutral-700 text-neutral-100 hover:bg-neutral-700"
-          }`}
-          title={isRecording ? "Stop recording" : "Record voice message"}
-        >
-          🎤
-        </button>
-        <input
-          value={text}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Message… (use @name to tag)"
-          maxLength={500}
-          className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-500"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            // Screenshot functionality for viewers
-            const video = document.querySelector('video');
-            if (video) {
-              const canvas = document.createElement('canvas');
-              canvas.width = video.videoWidth;
-              canvas.height = video.videoHeight;
-              const ctx = canvas.getContext('2d');
-              ctx?.drawImage(video, 0, 0);
-              canvas.toBlob((blob) => {
-                if (blob) {
-                  const file = new File([blob], `screenshot-${Date.now()}.png`, { type: 'image/png' });
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                sendFile(file);
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
+          >
+            📎
+          </button>
+          <button
+            type="button"
+            onClick={isRecording ? stopRecording : startRecording}
+            className={`px-3 rounded-lg text-sm ${
+              isRecording
+                ? "bg-red-500 text-white animate-pulse"
+                : "bg-neutral-800 border border-neutral-700 text-neutral-100 hover:bg-neutral-700"
+            }`}
+            title={isRecording ? "Stop recording" : "Record voice message"}
+          >
+            🎤
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const video = document.querySelector("video");
+              if (video && video.videoWidth && video.videoHeight) {
+                const canvas = document.createElement("canvas");
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) return;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                canvas.toBlob((blob) => {
+                  if (!blob) return;
+                  const file = new File([blob], `screenshot-${Date.now()}.png`, {
+                    type: "image/png",
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = file.name;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  URL.revokeObjectURL(url);
                   sendFile(file);
-                }
-              });
-            }
-          }}
-          className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
-          title="Take screenshot"
-        >
-          📸
-        </button>
-        <button
-          type="submit"
-          className="px-3 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200"
-        >
-          Send
-        </button>
+                });
+              }
+            }}
+            className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
+            title="Take screenshot"
+          >
+            📸
+          </button>
+          {canTag && (
+            <div className="flex items-center gap-1">
+              {["red", "yellow", "green", "blue"].map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setTagColor(color as "red" | "yellow" | "green" | "blue")}
+                  className={`h-8 w-8 rounded-full border ${
+                    tagColor === color
+                      ? "border-white"
+                      : "border-neutral-700"
+                  } ${
+                    color === "red"
+                      ? "bg-red-500"
+                      : color === "yellow"
+                      ? "bg-yellow-400"
+                      : color === "green"
+                      ? "bg-emerald-500"
+                      : "bg-sky-500"
+                  }`}
+                  aria-label={`Tag ${color}`}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => setTagColor("none")}
+                className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-100 hover:bg-neutral-800"
+              >
+                Clear tag
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <input
+            value={text}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Message… (use @name to tag)"
+            maxLength={500}
+            className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-500"
+          />
+          <button
+            type="submit"
+            className="px-3 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200"
+          >
+            Send
+          </button>
+        </div>
       </form>
     </aside>
   );
