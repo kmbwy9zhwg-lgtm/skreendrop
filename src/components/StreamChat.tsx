@@ -351,11 +351,18 @@ export default function StreamChat({
   };
 
   return (
-    <aside
-      className={`${
-        open ? "translate-x-0" : "translate-x-full"
-      } fixed lg:static top-0 right-0 z-40 h-full lg:h-full w-full sm:w-80 lg:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col transition-transform duration-200 overflow-hidden`}
-    >
+    <>
+      {open && (
+        <div
+          className="fixed inset-0 bg-black/40 z-30 lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      <aside
+        className={`${
+          open ? "translate-x-0" : "translate-x-full"
+        } fixed top-0 right-0 z-40 h-full w-full sm:w-80 bg-neutral-950 border-l border-neutral-800 flex flex-col transition-transform duration-200 overflow-hidden`}
+      >
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800 flex-shrink-0">
         <div className="text-sm font-medium">Live chat</div>
         <button
@@ -704,5 +711,6 @@ export default function StreamChat({
         </div>
       </form>
     </aside>
+    </>
   );
 }
