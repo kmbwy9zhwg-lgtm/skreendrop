@@ -25,3 +25,13 @@ export function getDeviceId(): string {
   }
   return id;
 }
+
+export type DeviceType = "mobile" | "desktop";
+
+export function getDeviceType(): DeviceType {
+  if (typeof navigator === "undefined") return "desktop";
+  const ua = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(ua)
+    ? "mobile"
+    : "desktop";
+}
