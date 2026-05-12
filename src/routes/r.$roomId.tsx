@@ -81,7 +81,7 @@ function ViewerPage() {
       channel.send({
         type: "broadcast",
         event: "hello",
-        payload: { from: viewerIdRef.current },
+        payload: { from: viewerIdRef.current, name: selfName },
       });
     };
 
