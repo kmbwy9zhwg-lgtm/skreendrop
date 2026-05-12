@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { makeId } from "@/lib/webrtc";
-import { getDeviceId, getDeviceName } from "@/lib/device";
+import { getDeviceId, getDeviceName, setDeviceName } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
 
 export const Route = createFileRoute("/")({
