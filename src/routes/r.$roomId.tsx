@@ -14,18 +14,30 @@ function ViewerPage() {
   const { roomId } = Route.useParams();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const camRef = useRef<HTMLVideoElement>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const hostIdRef = useRef<string | null>(null);
   const viewerIdRef = useRef<string>(makePeerId());
+  const metaRef = useRef<{ screenId: string | null; camId: string | null }>({
+    screenId: null,
+    camId: null,
+  });
+  const incomingStreamsRef = useRef<Map<string, MediaStream>>(new Map());
 
   const [status, setStatus] = useState("Connecting…");
   const [muted, setMuted] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasCam, setHasCam] = useState(false);
+  const [showCam, setShowCam] = useState(true);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Viewer");
+
+  // Draggable cam overlay
+  const [camPos, setCamPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ dx: number; dy: number } | null>(null);
 
   useEffect(() => {
     setSelfId(getDeviceId());
@@ -37,6 +49,24 @@ function ViewerPage() {
     document.addEventListener("fullscreenchange", onFs);
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
+
+  function applyStreams() {
+    const { screenId, camId } = metaRef.current;
+    const map = incomingStreamsRef.current;
+    if (videoRef.current) {
+      const s = screenId ? map.get(screenId) : null;
+      if (videoRef.current.srcObject !== s) {
+        videoRef.current.srcObject = s ?? null;
+      }
+    }
+    const cs = camId ? map.get(camId) : null;
+    setHasCam(!!cs);
+    if (camRef.current) {
+      if (camRef.current.srcObject !== cs) {
+        camRef.current.srcObject = cs ?? null;
+      }
+    }
+  }
 
   useEffect(() => {
     const channel = supabase.channel(`room:${roomId}`, {
@@ -65,7 +95,18 @@ function ViewerPage() {
       setStatus("Host left the room");
       pcRef.current?.close();
       pcRef.current = null;
+      incomingStreamsRef.current.clear();
       if (videoRef.current) videoRef.current.srcObject = null;
+      if (camRef.current) camRef.current.srcObject = null;
+      setHasCam(false);
+    });
+
+    channel.on("broadcast", { event: "stream-meta" }, ({ payload }) => {
+      metaRef.current = {
+        screenId: payload.screenId ?? null,
+        camId: payload.camId ?? null,
+      };
+      applyStreams();
     });
 
     channel.on("broadcast", { event: "signal" }, async ({ payload }) => {
@@ -75,33 +116,45 @@ function ViewerPage() {
       hostIdRef.current = from;
 
       if (data.type === "offer") {
-        pcRef.current?.close();
-        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-        pcRef.current = pc;
+        let pc = pcRef.current;
+        if (!pc) {
+          pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+          pcRef.current = pc;
 
-        pc.ontrack = (e) => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = e.streams[0];
+          pc.ontrack = (e) => {
+            const stream = e.streams[0];
+            if (stream) {
+              incomingStreamsRef.current.set(stream.id, stream);
+              stream.onremovetrack = () => {
+                if (stream.getTracks().length === 0) {
+                  incomingStreamsRef.current.delete(stream.id);
+                  applyStreams();
+                }
+              };
+            }
+            applyStreams();
             setStatus("Live");
-          }
-        };
-        pc.onicecandidate = (ev) => {
-          if (ev.candidate && hostIdRef.current) {
-            channel.send({
-              type: "broadcast",
-              event: "signal",
-              payload: {
-                from: viewerIdRef.current,
-                to: hostIdRef.current,
-                data: ev.candidate.toJSON(),
-              },
-            });
-          }
-        };
-        pc.onconnectionstatechange = () => {
-          if (pc.connectionState === "failed") setStatus("Connection failed");
-          if (pc.connectionState === "disconnected") setStatus("Disconnected");
-        };
+          };
+          pc.onicecandidate = (ev) => {
+            if (ev.candidate && hostIdRef.current) {
+              channel.send({
+                type: "broadcast",
+                event: "signal",
+                payload: {
+                  from: viewerIdRef.current,
+                  to: hostIdRef.current,
+                  data: ev.candidate.toJSON(),
+                },
+              });
+            }
+          };
+          pc.onconnectionstatechange = () => {
+            if (pc!.connectionState === "failed")
+              setStatus("Connection failed");
+            if (pc!.connectionState === "disconnected")
+              setStatus("Disconnected");
+          };
+        }
 
         await pc.setRemoteDescription(new RTCSessionDescription(data));
         const answer = await pc.createAnswer();
@@ -114,6 +167,12 @@ function ViewerPage() {
             to: from,
             data: answer,
           },
+        });
+        // Ask host to resend meta in case ours is stale
+        channel.send({
+          type: "broadcast",
+          event: "meta-please",
+          payload: { from: viewerIdRef.current },
         });
       } else if (data.candidate && pcRef.current) {
         try {
@@ -176,6 +235,41 @@ function ViewerPage() {
     }
   }
 
+  // Drag handlers for cam overlay
+  function onCamPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    const target = e.currentTarget;
+    target.setPointerCapture(e.pointerId);
+    const container = containerRef.current!;
+    const rect = container.getBoundingClientRect();
+    const camRect = target.getBoundingClientRect();
+    dragRef.current = {
+      dx: e.clientX - camRect.left,
+      dy: e.clientY - camRect.top,
+    };
+    // initialize position from current corner if not set
+    if (!camPos) {
+      setCamPos({
+        x: camRect.left - rect.left,
+        y: camRect.top - rect.top,
+      });
+    }
+  }
+  function onCamPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragRef.current) return;
+    const container = containerRef.current!;
+    const rect = container.getBoundingClientRect();
+    const target = e.currentTarget.getBoundingClientRect();
+    let x = e.clientX - rect.left - dragRef.current.dx;
+    let y = e.clientY - rect.top - dragRef.current.dy;
+    x = Math.max(0, Math.min(x, rect.width - target.width));
+    y = Math.max(0, Math.min(y, rect.height - target.height));
+    setCamPos({ x, y });
+  }
+  function onCamPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    dragRef.current = null;
+  }
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
       <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-900">
@@ -213,7 +307,33 @@ function ViewerPage() {
               muted={muted}
               className="w-full h-full object-contain bg-black"
             />
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur rounded-full px-2 py-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
+
+            {/* Webcam overlay */}
+            {hasCam && showCam && (
+              <div
+                onPointerDown={onCamPointerDown}
+                onPointerMove={onCamPointerMove}
+                onPointerUp={onCamPointerUp}
+                style={
+                  camPos
+                    ? { left: camPos.x, top: camPos.y, right: "auto", bottom: "auto" }
+                    : { right: 12, bottom: 12 }
+                }
+                className="absolute w-32 sm:w-44 aspect-video rounded-2xl overflow-hidden ring-2 ring-white/30 shadow-2xl shadow-black/70 cursor-grab active:cursor-grabbing touch-none bg-black"
+                title="Drag to move"
+              >
+                <video
+                  ref={camRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover pointer-events-none"
+                />
+              </div>
+            )}
+
+            {/* Player controls */}
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/60 backdrop-blur rounded-full px-2 py-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
               <button
                 onClick={toggleMute}
                 className="px-3 py-1.5 rounded-full text-xs hover:bg-white/10"
@@ -221,6 +341,15 @@ function ViewerPage() {
               >
                 {muted ? "🔇 Unmute" : "🔊 Mute"}
               </button>
+              {hasCam && (
+                <button
+                  onClick={() => setShowCam((v) => !v)}
+                  className="px-3 py-1.5 rounded-full text-xs hover:bg-white/10"
+                  title="Toggle webcam overlay"
+                >
+                  {showCam ? "Hide cam" : "Show cam"}
+                </button>
+              )}
               <button
                 onClick={togglePiP}
                 className="px-3 py-1.5 rounded-full text-xs hover:bg-white/10"

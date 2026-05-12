@@ -18,16 +18,21 @@ function HostPage() {
   const [viewerCount, setViewerCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [camOn, setCamOn] = useState(false);
+  const [micOn, setMicOn] = useState(false);
+  const [screenAudioMuted, setScreenAudioMuted] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const camPreviewRef = useRef<HTMLVideoElement>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
+  const camStreamRef = useRef<MediaStream | null>(null);
+  const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const hostIdRef = useRef<string>(makePeerId());
   const fetchNetworkId = useServerFn(getNetworkId);
 
-  // Broadcast presence on the local-network lobby so nearby devices
-  // can discover this stream with one click.
+  // ---------- Lobby presence ----------
   const lobbyRef = useRef<RealtimeChannel | null>(null);
   const sharingRef = useRef(false);
   useEffect(() => {
@@ -64,7 +69,6 @@ function HostPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
-  // Re-track whenever sharing state or viewer count changes
   useEffect(() => {
     sharingRef.current = !!stream;
     const lobby = lobbyRef.current;
@@ -84,6 +88,72 @@ function HostPage() {
       ? `${window.location.origin}/r/${roomId}`
       : "";
 
+  // ---------- Helpers ----------
+  function broadcastMeta() {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "stream-meta",
+      payload: {
+        from: hostIdRef.current,
+        screenId: screenStreamRef.current?.id ?? null,
+        camId: camStreamRef.current?.id ?? null,
+      },
+    });
+  }
+
+  function syncTracks(pc: RTCPeerConnection) {
+    const desired: Array<{ track: MediaStreamTrack; stream: MediaStream }> = [];
+    const ss = screenStreamRef.current;
+    if (ss) {
+      ss.getTracks().forEach((t) => desired.push({ track: t, stream: ss }));
+      if (micTrackRef.current) {
+        desired.push({ track: micTrackRef.current, stream: ss });
+      }
+    }
+    const cs = camStreamRef.current;
+    if (cs) {
+      cs.getTracks().forEach((t) => desired.push({ track: t, stream: cs }));
+    }
+
+    for (const sender of pc.getSenders()) {
+      if (!desired.find((d) => d.track === sender.track)) {
+        try {
+          pc.removeTrack(sender);
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+    }
+    for (const d of desired) {
+      if (!pc.getSenders().find((s) => s.track === d.track)) {
+        pc.addTrack(d.track, d.stream);
+      }
+    }
+  }
+
+  async function sendOfferTo(viewerId: string, pc: RTCPeerConnection) {
+    syncTracks(pc);
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "signal",
+      payload: { from: hostIdRef.current, to: viewerId, data: offer },
+    });
+  }
+
+  async function renegotiateAll() {
+    for (const [vid, pc] of peersRef.current) {
+      try {
+        await sendOfferTo(vid, pc);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    broadcastMeta();
+  }
+
+  // ---------- Signaling channel ----------
   useEffect(() => {
     const channel = supabase.channel(`room:${roomId}`, {
       config: { broadcast: { self: false, ack: false } },
@@ -92,9 +162,13 @@ function HostPage() {
 
     channel.on("broadcast", { event: "hello" }, ({ payload }) => {
       const viewerId = payload.from as string;
-      if (streamRef.current) {
+      if (screenStreamRef.current) {
         createOfferFor(viewerId);
       }
+    });
+
+    channel.on("broadcast", { event: "meta-please" }, () => {
+      broadcastMeta();
     });
 
     channel.on("broadcast", { event: "signal" }, async ({ payload }) => {
@@ -143,7 +217,9 @@ function HostPage() {
       supabase.removeChannel(channel);
       peersRef.current.forEach((pc) => pc.close());
       peersRef.current.clear();
-      streamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      camStreamRef.current?.getTracks().forEach((t) => t.stop());
+      micTrackRef.current?.stop();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
@@ -153,10 +229,6 @@ function HostPage() {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     peersRef.current.set(viewerId, pc);
     setViewerCount(peersRef.current.size);
-
-    streamRef.current!.getTracks().forEach((t) =>
-      pc.addTrack(t, streamRef.current!)
-    );
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -184,19 +256,11 @@ function HostPage() {
       }
     };
 
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    channelRef.current?.send({
-      type: "broadcast",
-      event: "signal",
-      payload: {
-        from: hostIdRef.current,
-        to: viewerId,
-        data: offer,
-      },
-    });
+    await sendOfferTo(viewerId, pc);
+    broadcastMeta();
   }
 
+  // ---------- Capture controls ----------
   async function startSharing() {
     setError(null);
     try {
@@ -204,17 +268,18 @@ function HostPage() {
         video: { frameRate: 30 } as MediaTrackConstraints,
         audio: true,
       });
-      streamRef.current = ms;
+      screenStreamRef.current = ms;
       setStream(ms);
       if (videoRef.current) videoRef.current.srcObject = ms;
       ms.getVideoTracks()[0].addEventListener("ended", stopSharing);
 
-      // Announce so existing viewers can request offers
       await channelRef.current?.send({
         type: "broadcast",
         event: "host-ready",
         payload: { from: hostIdRef.current },
       });
+      // Existing peers (rare at start) renegotiate
+      await renegotiateAll();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Failed to start sharing";
       setError(msg);
@@ -222,12 +287,66 @@ function HostPage() {
   }
 
   function stopSharing() {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    streamRef.current = null;
+    screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+    screenStreamRef.current = null;
+    camStreamRef.current?.getTracks().forEach((t) => t.stop());
+    camStreamRef.current = null;
+    micTrackRef.current?.stop();
+    micTrackRef.current = null;
     setStream(null);
+    setCamOn(false);
+    setMicOn(false);
     peersRef.current.forEach((pc) => pc.close());
     peersRef.current.clear();
     setViewerCount(0);
+  }
+
+  async function toggleCam() {
+    setError(null);
+    try {
+      if (camStreamRef.current) {
+        camStreamRef.current.getTracks().forEach((t) => t.stop());
+        camStreamRef.current = null;
+        setCamOn(false);
+        if (camPreviewRef.current) camPreviewRef.current.srcObject = null;
+      } else {
+        const s = await navigator.mediaDevices.getUserMedia({
+          video: { width: 320, height: 240 },
+        });
+        camStreamRef.current = s;
+        setCamOn(true);
+        if (camPreviewRef.current) camPreviewRef.current.srcObject = s;
+      }
+      await renegotiateAll();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to toggle camera");
+    }
+  }
+
+  async function toggleMic() {
+    setError(null);
+    try {
+      if (micTrackRef.current) {
+        micTrackRef.current.stop();
+        micTrackRef.current = null;
+        setMicOn(false);
+      } else {
+        const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+        micTrackRef.current = s.getAudioTracks()[0];
+        setMicOn(true);
+      }
+      await renegotiateAll();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to toggle mic");
+    }
+  }
+
+  function toggleScreenAudio() {
+    const ss = screenStreamRef.current;
+    if (!ss) return;
+    const next = !screenAudioMuted;
+    ss.getAudioTracks().forEach((t) => (t.enabled = !next));
+    setScreenAudioMuted(next);
   }
 
   async function copyLink() {
@@ -244,6 +363,8 @@ function HostPage() {
     setSelfId(getDeviceId());
     setSelfName(getDeviceName());
   }, []);
+
+  const sharing = !!stream;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
@@ -288,8 +409,8 @@ function HostPage() {
             </button>
           </div>
 
-          <div className="flex-1 bg-black rounded-xl overflow-hidden flex items-center justify-center min-h-[240px]">
-            {stream ? (
+          <div className="relative flex-1 bg-black rounded-xl overflow-hidden flex items-center justify-center min-h-[240px]">
+            {sharing ? (
               <video
                 ref={videoRef}
                 autoPlay
@@ -300,23 +421,56 @@ function HostPage() {
             ) : (
               <div className="text-neutral-500 text-sm">No stream yet</div>
             )}
+            {camOn && (
+              <video
+                ref={camPreviewRef}
+                autoPlay
+                muted
+                playsInline
+                className="absolute bottom-3 right-3 w-32 sm:w-40 aspect-video rounded-xl object-cover ring-2 ring-white/20 shadow-2xl shadow-black/60 bg-black"
+              />
+            )}
           </div>
 
-          {!stream ? (
-            <button
-              onClick={startSharing}
-              className="w-full py-3 rounded-xl bg-white text-black font-medium hover:bg-neutral-200"
-            >
-              Start Sharing
-            </button>
-          ) : (
-            <button
-              onClick={stopSharing}
-              className="w-full py-3 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600"
-            >
-              Stop Sharing
-            </button>
-          )}
+          {/* Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            {!sharing ? (
+              <button
+                onClick={startSharing}
+                className="flex-1 min-w-[160px] py-3 rounded-xl bg-white text-black font-medium hover:bg-neutral-200"
+              >
+                Start Sharing
+              </button>
+            ) : (
+              <>
+                <ControlButton
+                  active={camOn}
+                  onClick={toggleCam}
+                  label={camOn ? "Cam on" : "Cam off"}
+                  icon="📷"
+                />
+                <ControlButton
+                  active={micOn}
+                  onClick={toggleMic}
+                  label={micOn ? "Mic on" : "Mic off"}
+                  icon="🎤"
+                />
+                <ControlButton
+                  active={!screenAudioMuted}
+                  onClick={toggleScreenAudio}
+                  label={screenAudioMuted ? "System muted" : "System audio"}
+                  icon="🔊"
+                  disabled={!screenStreamRef.current?.getAudioTracks().length}
+                />
+                <button
+                  onClick={stopSharing}
+                  className="ml-auto px-4 py-2 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 text-sm"
+                >
+                  End stream
+                </button>
+              </>
+            )}
+          </div>
 
           {error && <div className="text-sm text-red-400">{error}</div>}
         </main>
@@ -344,5 +498,36 @@ function HostPage() {
         />
       </div>
     </div>
+  );
+}
+
+function ControlButton({
+  active,
+  onClick,
+  label,
+  icon,
+  disabled,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  icon: string;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`px-3 py-2 rounded-xl text-sm border transition flex items-center gap-2 ${
+        disabled
+          ? "bg-neutral-900 border-neutral-800 text-neutral-600 cursor-not-allowed"
+          : active
+          ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25"
+          : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800"
+      }`}
+    >
+      <span aria-hidden>{icon}</span>
+      <span>{label}</span>
+    </button>
   );
 }
