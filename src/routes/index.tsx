@@ -44,7 +44,7 @@ function Home() {
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
     const deviceId = getDeviceId();
-    const deviceName = getDeviceName();
+    deviceIdRef.current = deviceId;
 
     (async () => {
       const { networkId } = await fetchNetworkId();
@@ -76,7 +76,7 @@ function Home() {
         if (status === "SUBSCRIBED") {
           await channel!.track({
             deviceId,
-            deviceName,
+            deviceName: getDeviceName(),
             sharing: false,
           } satisfies Nearby);
           setNetworkReady(true);
