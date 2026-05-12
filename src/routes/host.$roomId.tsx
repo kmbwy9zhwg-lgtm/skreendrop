@@ -16,6 +16,7 @@ function HostPage() {
   const { roomId } = Route.useParams();
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
+  const [viewers, setViewers] = useState<Array<{id: string, name: string}>>([]);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [camOn, setCamOn] = useState(false);
@@ -222,6 +223,16 @@ function HostPage() {
 
     channel.on("broadcast", { event: "hello" }, ({ payload }) => {
       const viewerId = payload.from as string;
+      const viewerName = payload.name as string || "Viewer";
+      setViewers(prev => {
+        const existing = prev.find(v => v.id === viewerId);
+        if (!existing) {
+          return [...prev, { id: viewerId, name: viewerName }];
+        } else if (existing.name !== viewerName) {
+          return prev.map(v => v.id === viewerId ? { ...v, name: viewerName } : v);
+        }
+        return prev;
+      });
       if (screenStreamRef.current) {
         createOfferFor(viewerId);
       }
@@ -269,6 +280,7 @@ function HostPage() {
         peersRef.current.delete(id);
         setViewerCount(peersRef.current.size);
       }
+      setViewers(prev => prev.filter(v => v.id !== id));
     });
 
     channel.subscribe(async (status) => {
@@ -429,6 +441,7 @@ function HostPage() {
   }
 
   const [chatOpen, setChatOpen] = useState(false);
+  const [viewersOpen, setViewersOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Host");
@@ -462,6 +475,12 @@ function HostPage() {
                 {unread}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setViewersOpen((o) => !o)}
+            className="lg:hidden relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+          >
+            Viewers
           </button>
         </div>
       </header>
@@ -549,6 +568,38 @@ function HostPage() {
         </main>
 
         <div className="hidden lg:flex">
+          {viewersOpen && (
+            <aside className="w-48 bg-neutral-900 border-l border-neutral-800 flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+                <div className="text-sm font-medium">Viewers ({viewers.length})</div>
+                <button
+                  onClick={() => setViewersOpen(false)}
+                  className="text-neutral-400 hover:text-white text-sm"
+                  aria-label="Close viewers"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 py-3">
+                {viewers.length === 0 ? (
+                  <p className="text-xs text-neutral-500 text-center mt-4">
+                    No viewers yet
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {viewers.map((viewer) => (
+                      <div
+                        key={viewer.id}
+                        className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
+                      >
+                        {viewer.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </aside>
+          )}
           <StreamChat
             roomId={roomId}
             selfId={selfId || "anon"}
@@ -561,6 +612,38 @@ function HostPage() {
       </div>
 
       <div className="lg:hidden">
+        {viewersOpen && (
+          <aside className="fixed lg:static top-0 right-0 z-30 h-full w-full sm:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+              <div className="text-sm font-medium">Viewers ({viewers.length})</div>
+              <button
+                onClick={() => setViewersOpen(false)}
+                className="text-neutral-400 hover:text-white text-sm"
+                aria-label="Close viewers"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 py-3">
+              {viewers.length === 0 ? (
+                <p className="text-xs text-neutral-500 text-center mt-4">
+                  No viewers yet
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {viewers.map((viewer) => (
+                    <div
+                      key={viewer.id}
+                      className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
+                    >
+                      {viewer.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
         <StreamChat
           roomId={roomId}
           selfId={selfId || "anon"}
