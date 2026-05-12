@@ -34,7 +34,11 @@ function Home() {
   const [code, setCode] = useState("");
   const [nearby, setNearby] = useState<Nearby[]>([]);
   const [networkReady, setNetworkReady] = useState(false);
+  const [deviceName, setDeviceNameState] = useState<string>(() => getDeviceName());
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const deviceIdRef = useRef<string>("");
 
   useEffect(() => {
     let cancelled = false;
