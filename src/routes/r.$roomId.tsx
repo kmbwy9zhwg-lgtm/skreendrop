@@ -421,21 +421,27 @@ function ViewerPage() {
         </div>
       </header>
       {shareSources.length > 0 && (
-        <div className="px-4 py-2 border-b border-neutral-900 bg-neutral-950 text-xs text-neutral-300 flex flex-wrap gap-2">
-          {shareSources.map((source) => (
-            <button
-              key={source.id}
-              type="button"
-              onClick={() => setActiveSourceId(source.id)}
-              className={`rounded-full border px-3 py-1 transition ${
-                activeSourceId === source.id
-                  ? "bg-white text-black border-white"
-                  : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800"
-              }`}
-            >
-              {source.label}
-            </button>
-          ))}
+        <div className="px-4 py-3 border-b border-neutral-900 bg-neutral-900/50">
+          <div className="text-xs text-neutral-400 mb-2 font-semibold uppercase tracking-wide">
+            Available Sources ({shareSources.length}/4)
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {shareSources.map((source) => (
+              <button
+                key={source.id}
+                type="button"
+                onClick={() => setActiveSourceId(source.id)}
+                className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                  activeSourceId === source.id
+                    ? "bg-white text-black border-white shadow-lg"
+                    : "bg-neutral-800 border-neutral-700 text-neutral-200 hover:bg-neutral-700 hover:border-neutral-600"
+                }`}
+              >
+                {source.label}
+                {activeSourceId === source.id && " ✓"}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
