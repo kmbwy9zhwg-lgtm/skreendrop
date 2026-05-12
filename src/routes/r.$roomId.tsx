@@ -27,6 +27,7 @@ function ViewerPage() {
 
   const [status, setStatus] = useState("Connecting…");
   const [muted, setMuted] = useState(true);
+  const [micOn, setMicOn] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -34,6 +35,8 @@ function ViewerPage() {
   const [showCam, setShowCam] = useState(true);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Viewer");
+  const micTrackRef = useRef<MediaStreamTrack | null>(null);
+  const micSenderRef = useRef<RTCRtpSender | null>(null);
 
   // Draggable cam overlay
   const [camPos, setCamPos] = useState<{ x: number; y: number } | null>(null);
@@ -156,6 +159,13 @@ function ViewerPage() {
           };
         }
 
+        if (micTrackRef.current && !micSenderRef.current) {
+          micSenderRef.current = pc.addTrack(
+            micTrackRef.current,
+            new MediaStream([micTrackRef.current])
+          );
+        }
+
         await pc.setRemoteDescription(new RTCSessionDescription(data));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
@@ -209,6 +219,33 @@ function ViewerPage() {
     setMuted(v.muted);
   }
 
+  async function toggleMic() {
+    if (micTrackRef.current) {
+      micSenderRef.current?.replaceTrack(null);
+      micTrackRef.current.stop();
+      micTrackRef.current = null;
+      micSenderRef.current = null;
+      setMicOn(false);
+      await renegotiate();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      micTrackRef.current = stream.getAudioTracks()[0];
+      setMicOn(true);
+      if (pcRef.current) {
+        micSenderRef.current = pcRef.current.addTrack(
+          micTrackRef.current,
+          stream
+        );
+        await renegotiate();
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
   async function toggleFullscreen() {
     const el = containerRef.current;
     if (!el) return;
@@ -233,6 +270,24 @@ function ViewerPage() {
     } catch (e) {
       console.warn(e);
     }
+  }
+
+  async function renegotiate() {
+    const pc = pcRef.current;
+    const hostId = hostIdRef.current;
+    if (!pc || !hostId || !channelRef.current) return;
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    channelRef.current.send({
+      type: "broadcast",
+      event: "signal",
+      payload: {
+        from: viewerIdRef.current,
+        to: hostId,
+        data: offer,
+      },
+    });
   }
 
   // Drag handlers for cam overlay
@@ -274,7 +329,7 @@ function ViewerPage() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
       <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-900">
         <Link to="/" className="text-lg font-semibold tracking-tight">
-          ScreenDrop
+          Skreendrop
         </Link>
         <div className="flex items-center gap-3 text-xs text-neutral-400">
           <span className="font-mono">{roomId}</span>
@@ -340,6 +395,13 @@ function ViewerPage() {
                 title={muted ? "Unmute" : "Mute"}
               >
                 {muted ? "🔇 Unmute" : "🔊 Mute"}
+              </button>
+              <button
+                onClick={toggleMic}
+                className="px-3 py-1.5 rounded-full text-xs hover:bg-white/10"
+                title={micOn ? "Turn mic off" : "Turn mic on"}
+              >
+                {micOn ? "🎤 Mic on" : "🎙️ Mic off"}
               </button>
               {hasCam && (
                 <button
