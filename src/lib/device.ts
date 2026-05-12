@@ -11,6 +11,11 @@ export function getDeviceName(): string {
   return name;
 }
 
+export function setDeviceName(name: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem("sd:deviceName", name);
+}
+
 export function getDeviceId(): string {
   if (typeof window === "undefined") return "anon";
   let id = localStorage.getItem("sd:deviceId");
