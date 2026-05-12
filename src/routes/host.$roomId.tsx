@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ICE_SERVERS, makePeerId } from "@/lib/webrtc";
-import { getDeviceId, getDeviceName } from "@/lib/device";
+import { getDeviceId, getDeviceName, getDeviceType } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
