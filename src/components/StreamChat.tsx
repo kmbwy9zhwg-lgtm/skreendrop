@@ -49,6 +49,8 @@ export default function StreamChat({
   const [filterTag, setFilterTag] = useState<"all" | "red" | "yellow" | "green" | "blue">("all");
   const [notification, setNotification] = useState<string | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [selectedTagMessageId, setSelectedTagMessageId] = useState<string | null>(null);
+  const [pinnedMessages, setPinnedMessages] = useState<ChatMessage[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
@@ -95,6 +97,32 @@ export default function StreamChat({
         () => setTypingUser(null),
         1500
       );
+    });
+
+    ch.on("broadcast", { event: "tag-message" }, ({ payload }) => {
+      const { messageId, tagColor: color } = payload as {
+        messageId: string;
+        tagColor: "red" | "yellow" | "green" | "blue";
+      };
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, tagColor: color } : m))
+      );
+      setPinnedMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, tagColor: color } : m))
+      );
+    });
+
+    ch.on("broadcast", { event: "pin" }, ({ payload }) => {
+      const message = payload as ChatMessage;
+      setPinnedMessages((prev) => {
+        if (prev.some((m) => m.id === message.id)) return prev;
+        return [message, ...prev];
+      });
+    });
+
+    ch.on("broadcast", { event: "unpin" }, ({ payload }) => {
+      const message = payload as ChatMessage;
+      setPinnedMessages((prev) => prev.filter((m) => m.id !== message.id));
     });
 
     ch.subscribe();
@@ -167,6 +195,39 @@ export default function StreamChat({
     setText("");
     setReplyTo(null);
     setTagColor("none");
+  };
+
+  const applyTagToMessage = (
+    messageId: string,
+    color: "red" | "yellow" | "green" | "blue"
+  ) => {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "tag-message",
+      payload: { messageId, tagColor: color },
+    });
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, tagColor: color } : m))
+    );
+    setSelectedTagMessageId(null);
+  };
+
+  const togglePin = (message: ChatMessage) => {
+    if (pinnedMessages.some((m) => m.id === message.id)) {
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "unpin",
+        payload: message,
+      });
+      setPinnedMessages((prev) => prev.filter((m) => m.id !== message.id));
+      return;
+    }
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "pin",
+      payload: message,
+    });
+    setPinnedMessages((prev) => [message, ...prev.filter((m) => m.id !== message.id)]);
   };
 
   const sendFile = async (file: File) => {
@@ -277,9 +338,7 @@ export default function StreamChat({
     <aside
       className={`${
         open ? "translate-x-0" : "translate-x-full"
-      } fixed lg:static top-0 right-0 z-40 h-full lg:h-full lg:translate-x-0 w-full sm:w-80 lg:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col transition-transform duration-200 ${
-        open ? "" : "lg:hidden"
-      }`}
+      } fixed lg:static top-0 right-0 z-40 h-full lg:h-full w-full sm:w-80 lg:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col transition-transform duration-200`}
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
         <div className="text-sm font-medium">Live chat</div>
@@ -315,6 +374,24 @@ export default function StreamChat({
           ))}
         </div>
       </div>
+      {pinnedMessages.length > 0 && (
+        <div className="px-3 py-3 border-b border-neutral-800 space-y-2">
+          <div className="text-xs uppercase tracking-wide text-neutral-400">
+            Pinned
+          </div>
+          {pinnedMessages.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => scrollToMessage(m.id)}
+              className="w-full text-left rounded-2xl border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-200 hover:bg-neutral-800"
+            >
+              <div className="font-semibold text-neutral-100">{m.name}</div>
+              <div className="truncate text-neutral-400">{m.text}</div>
+            </button>
+          ))}
+        </div>
+      )}
       <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
         {filteredMessages.length === 0 ? (
           <p className="text-xs text-neutral-500 text-center mt-4">
@@ -327,13 +404,21 @@ export default function StreamChat({
               ref={(el) => {
                 messageRefs.current[m.id] = el;
               }}
+              onClick={(e) => {
+                if (!canTag) return;
+                const target = e.target as HTMLElement;
+                if (target.closest("button")) return;
+                setSelectedTagMessageId(m.id);
+              }}
               className={`group max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words border ${
                 m.self
                   ? "ml-auto bg-white text-black border-white/10"
                   : "bg-neutral-800 text-neutral-100 border-neutral-800"
               } ${
                 highlightedMessageId === m.id ? "ring-2 ring-amber-400 bg-amber-400/10" : ""
-              }`}
+              } ${
+                selectedTagMessageId === m.id ? "ring-2 ring-sky-400 bg-sky-500/10" : ""
+              } ${canTag ? "cursor-pointer" : ""}`}
             >
               <div className="flex items-center justify-between gap-2 mb-1">
                 <div className="flex items-center gap-2">
@@ -346,13 +431,22 @@ export default function StreamChat({
                     </span>
                   )}
                 </div>
-                <button
-                  onClick={() => setReplyTo(m)}
-                  className="text-[10px] text-neutral-400 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Reply"
-                >
-                  ↩️
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setReplyTo(m)}
+                    className="text-[10px] text-neutral-400 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Reply"
+                  >
+                    ↩️
+                  </button>
+                  <button
+                    onClick={() => togglePin(m)}
+                    className="text-[10px] text-neutral-400 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title={pinnedMessages.some((p) => p.id === m.id) ? "Unpin" : "Pin"}
+                  >
+                    {pinnedMessages.some((p) => p.id === m.id) ? "📌" : "📍"}
+                  </button>
+                </div>
               </div>
               {m.replyTo && m.replyText && (
                 <div
@@ -415,6 +509,37 @@ export default function StreamChat({
                 {participant}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+      {canTag && selectedTagMessageId && (
+        <div className="px-3 py-2 bg-neutral-900 border-t border-neutral-700">
+          <div className="mb-2 text-xs text-neutral-400">Tag selected message:</div>
+          <div className="flex gap-1">
+            {(["red", "yellow", "green", "blue"] as const).map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => applyTagToMessage(selectedTagMessageId, color)}
+                className={`h-8 w-8 rounded-full border ${
+                  color === "red"
+                    ? "bg-red-500"
+                    : color === "yellow"
+                    ? "bg-yellow-400"
+                    : color === "green"
+                    ? "bg-emerald-500"
+                    : "bg-sky-500"
+                } ${selectedTagMessageId ? "border-white" : "border-neutral-700"}`}
+                aria-label={`Tag ${color}`}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => setSelectedTagMessageId(null)}
+              className="rounded-lg border border-neutral-700 px-2 py-1 text-xs text-neutral-100 hover:bg-neutral-800"
+            >
+              Clear
+            </button>
           </div>
         </div>
       )}
