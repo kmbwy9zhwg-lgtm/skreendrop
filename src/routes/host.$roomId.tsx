@@ -398,7 +398,10 @@ function HostPage() {
       });
       screenStreamRef.current = ms;
       setStream(ms);
-      if (videoRef.current) videoRef.current.srcObject = ms;
+      if (videoRef.current) {
+        videoRef.current.srcObject = ms;
+        await videoRef.current.play().catch((e) => console.warn("Auto-play failed:", e));
+      }
       ms.getVideoTracks()[0].addEventListener("ended", stopSharing);
 
       await channelRef.current?.send({
