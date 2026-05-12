@@ -29,6 +29,7 @@ function HostPage() {
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const hostIdRef = useRef<string>(makePeerId());
   const fetchNetworkId = useServerFn(getNetworkId);
 
@@ -106,13 +107,14 @@ function HostPage() {
     const ss = screenStreamRef.current;
     if (ss) {
       ss.getTracks().forEach((t) => desired.push({ track: t, stream: ss }));
-      if (micTrackRef.current) {
-        desired.push({ track: micTrackRef.current, stream: ss });
-      }
     }
     const cs = camStreamRef.current;
     if (cs) {
       cs.getTracks().forEach((t) => desired.push({ track: t, stream: cs }));
+    }
+    if (micTrackRef.current) {
+      const micStream = ss ?? new MediaStream([micTrackRef.current]);
+      desired.push({ track: micTrackRef.current, stream: micStream });
     }
 
     for (const sender of pc.getSenders()) {
@@ -129,6 +131,64 @@ function HostPage() {
         pc.addTrack(d.track, d.stream);
       }
     }
+  }
+
+  function createPeerConnection(viewerId: string) {
+    let pc = peersRef.current.get(viewerId);
+    if (pc) return pc;
+
+    pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    peersRef.current.set(viewerId, pc);
+    setViewerCount(peersRef.current.size);
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "signal",
+          payload: {
+            from: hostIdRef.current,
+            to: viewerId,
+            data: e.candidate.toJSON(),
+          },
+        });
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (
+        pc.connectionState === "failed" ||
+        pc.connectionState === "closed" ||
+        pc.connectionState === "disconnected"
+      ) {
+        pc.close();
+        peersRef.current.delete(viewerId);
+        setViewerCount(peersRef.current.size);
+        const audio = audioElementsRef.current.get(viewerId);
+        if (audio) {
+          audio.pause();
+          audio.srcObject = null;
+          audio.remove();
+          audioElementsRef.current.delete(viewerId);
+        }
+      }
+    };
+
+    pc.ontrack = (e) => {
+      const stream = e.streams[0];
+      if (!stream) return;
+      let audio = audioElementsRef.current.get(viewerId);
+      if (!audio) {
+        audio = document.createElement("audio");
+        audio.autoplay = true;
+        audio.hidden = true;
+        audioElementsRef.current.set(viewerId, audio);
+        document.body.appendChild(audio);
+      }
+      audio.srcObject = stream;
+    };
+
+    return pc;
   }
 
   async function sendOfferTo(viewerId: string, pc: RTCPeerConnection) {
@@ -175,11 +235,24 @@ function HostPage() {
       if (payload.to !== hostIdRef.current) return;
       const from = payload.from as string;
       const data = payload.data;
-      const pc = peersRef.current.get(from);
-      if (!pc) return;
       if (data.type === "answer") {
+        const pc = peersRef.current.get(from);
+        if (!pc) return;
         await pc.setRemoteDescription(new RTCSessionDescription(data));
+      } else if (data.type === "offer") {
+        const pc = createPeerConnection(from);
+        syncTracks(pc);
+        await pc.setRemoteDescription(new RTCSessionDescription(data));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        channelRef.current?.send({
+          type: "broadcast",
+          event: "signal",
+          payload: { from: hostIdRef.current, to: from, data: answer },
+        });
       } else if (data.candidate) {
+        const pc = peersRef.current.get(from);
+        if (!pc) return;
         try {
           await pc.addIceCandidate(data);
         } catch (e) {
@@ -370,7 +443,7 @@ function HostPage() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
       <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-900">
         <Link to="/" className="text-lg font-semibold tracking-tight">
-          ScreenDrop
+          Skreendrop
         </Link>
         <div className="flex items-center gap-3 text-xs text-neutral-400">
           <span className="font-mono">{roomId}</span>
