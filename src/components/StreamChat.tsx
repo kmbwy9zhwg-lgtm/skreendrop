@@ -367,10 +367,10 @@ export default function StreamChat({
         <div className="text-sm font-medium">Live chat</div>
         <button
           onClick={onClose}
-          className="lg:hidden text-neutral-400 hover:text-white text-sm"
+          className="text-neutral-400 hover:text-white text-sm font-semibold px-2 py-1 rounded-lg hover:bg-neutral-800 transition"
           aria-label="Close chat"
         >
-          ✕
+          ✕ Collapse
         </button>
       </div>
       {notification && (
