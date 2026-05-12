@@ -1,7 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ICE_SERVERS, makePeerId } from "@/lib/webrtc";
+import { getDeviceId, getDeviceName } from "@/lib/device";
+import { getNetworkId } from "@/lib/network.functions";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/host/$roomId")({
