@@ -27,34 +27,56 @@ function HostPage() {
 
   // Broadcast presence on the local-network lobby so nearby devices
   // can discover this stream with one click.
+  const lobbyRef = useRef<RealtimeChannel | null>(null);
+  const sharingRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
     let lobby: RealtimeChannel | null = null;
     const deviceId = getDeviceId();
     const deviceName = getDeviceName();
+    const deviceType = getDeviceType();
     (async () => {
       const { networkId } = await fetchNetworkId();
       if (cancelled) return;
       lobby = supabase.channel(`lobby:${networkId}`, {
         config: { presence: { key: deviceId } },
       });
+      lobbyRef.current = lobby;
       lobby.subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await lobby!.track({
             deviceId,
             deviceName,
-            sharing: true,
+            deviceType,
+            sharing: sharingRef.current,
             roomId,
+            viewerCount: 0,
           });
         }
       });
     })();
     return () => {
       cancelled = true;
+      lobbyRef.current = null;
       if (lobby) supabase.removeChannel(lobby);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
+
+  // Re-track whenever sharing state or viewer count changes
+  useEffect(() => {
+    sharingRef.current = !!stream;
+    const lobby = lobbyRef.current;
+    if (!lobby) return;
+    lobby.track({
+      deviceId: getDeviceId(),
+      deviceName: getDeviceName(),
+      deviceType: getDeviceType(),
+      sharing: !!stream,
+      roomId,
+      viewerCount,
+    });
+  }, [stream, viewerCount, roomId]);
 
   const shareUrl =
     typeof window !== "undefined"
