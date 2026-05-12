@@ -9,6 +9,9 @@ export type ChatMessage = {
   text: string;
   ts: number;
   self?: boolean;
+  kind?: "text" | "image" | "audio" | "file";
+  url?: string;
+  mimeType?: string;
 };
 
 type Props = {
@@ -33,6 +36,7 @@ export default function StreamChat({
   const [typingUser, setTypingUser] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const unreadRef = useRef(0);
 
@@ -94,6 +98,36 @@ export default function StreamChat({
     setText("");
   };
 
+  const sendFile = async (file: File) => {
+    let kind: "text" | "image" | "audio" | "file" = "file";
+    if (file.type.startsWith("image/")) {
+      kind = "image";
+    } else if (file.type.startsWith("audio/")) {
+      kind = "audio";
+    }
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const msg: ChatMessage = {
+      id: Math.random().toString(36).slice(2),
+      from: selfId,
+      name: selfName,
+      text: file.name,
+      ts: Date.now(),
+      kind,
+      url: dataUrl,
+      mimeType: file.type,
+    };
+    channelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
+    setMessages((prev) => [...prev, { ...msg, self: true }]);
+    fileInputRef.current && (fileInputRef.current.value = "");
+  };
+
   const onChange = (v: string) => {
     setText(v);
     channelRef.current?.send({
@@ -142,6 +176,30 @@ export default function StreamChat({
                 </div>
               )}
               <div>{m.text}</div>
+              {m.kind === "image" && m.url && (
+                <img
+                  src={m.url}
+                  alt={m.text}
+                  className="mt-2 max-h-48 w-full rounded-xl object-contain"
+                />
+              )}
+              {m.kind === "audio" && m.url && (
+                <audio
+                  controls
+                  src={m.url}
+                  className="mt-2 w-full"
+                />
+              )}
+              {m.kind === "file" && m.url && (
+                <a
+                  href={m.url}
+                  download={m.text}
+                  className="mt-2 block px-3 py-2 bg-blue-600 text-white text-xs rounded-lg text-center hover:bg-blue-700 truncate"
+                  title={m.text}
+                >
+                  📥 Download: {m.text}
+                </a>
+              )}
             </div>
           ))
         )}
@@ -156,6 +214,24 @@ export default function StreamChat({
         }}
         className="p-3 border-t border-neutral-800 flex gap-2"
       >
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              sendFile(file);
+            }
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
+        >
+          Attach
+        </button>
         <input
           value={text}
           onChange={(e) => onChange(e.target.value)}
