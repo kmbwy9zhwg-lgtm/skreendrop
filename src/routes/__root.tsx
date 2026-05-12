@@ -72,14 +72,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "skdrop" },
+      { name: "description", content: "SkreenDrop is a fast, private, browser-based screen sharing app that lets you instantly share your screen and audio with nearby devices or remote viewers" },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "skdrop" },
+      { property: "og:description", content: "SkreenDrop is a fast, private, browser-based screen sharing app that lets you instantly share your screen and audio with nearby devices or remote viewers" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "skdrop" },
+      { name: "twitter:description", content: "SkreenDrop is a fast, private, browser-based screen sharing app that lets you instantly share your screen and audio with nearby devices or remote viewers" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b20860c8-8d47-4145-ab82-5146576592e0" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b20860c8-8d47-4145-ab82-5146576592e0" },
     ],
     links: [
       {
