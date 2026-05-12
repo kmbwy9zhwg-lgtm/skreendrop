@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { makeId } from "@/lib/webrtc";
-import { getDeviceId, getDeviceName } from "@/lib/device";
+import { getDeviceId, getDeviceName, setDeviceName } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
 
 export const Route = createFileRoute("/")({
@@ -34,13 +34,17 @@ function Home() {
   const [code, setCode] = useState("");
   const [nearby, setNearby] = useState<Nearby[]>([]);
   const [networkReady, setNetworkReady] = useState(false);
+  const [deviceName, setDeviceNameState] = useState<string>(() => getDeviceName());
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const deviceIdRef = useRef<string>("");
 
   useEffect(() => {
     let cancelled = false;
     let channel: RealtimeChannel | null = null;
     const deviceId = getDeviceId();
-    const deviceName = getDeviceName();
+    deviceIdRef.current = deviceId;
 
     (async () => {
       const { networkId } = await fetchNetworkId();
@@ -72,7 +76,7 @@ function Home() {
         if (status === "SUBSCRIBED") {
           await channel!.track({
             deviceId,
-            deviceName,
+            deviceName: getDeviceName(),
             sharing: false,
           } satisfies Nearby);
           setNetworkReady(true);
@@ -89,6 +93,25 @@ function Home() {
 
   const sharers = nearby.filter((n) => n.sharing && n.roomId);
 
+  const saveName = async () => {
+    const trimmed = nameDraft.trim().slice(0, 32);
+    if (!trimmed) {
+      setEditingName(false);
+      return;
+    }
+    setDeviceName(trimmed);
+    setDeviceNameState(trimmed);
+    setEditingName(false);
+    const ch = channelRef.current;
+    if (ch) {
+      await ch.track({
+        deviceId: deviceIdRef.current,
+        deviceName: trimmed,
+        sharing: false,
+      } satisfies Nearby);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
@@ -97,6 +120,38 @@ function Home() {
           <p className="text-sm text-neutral-500 mt-2">
             Instant browser screen sharing
           </p>
+          <div className="mt-4 flex items-center justify-center gap-2 text-sm">
+            <span className="text-neutral-500">You are</span>
+            {editingName ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveName();
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  onChange={(e) => setNameDraft(e.target.value)}
+                  onBlur={saveName}
+                  maxLength={32}
+                  className="rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 text-sm w-40 outline-none focus:border-neutral-500"
+                />
+              </form>
+            ) : (
+              <button
+                onClick={() => {
+                  setNameDraft(deviceName);
+                  setEditingName(true);
+                }}
+                className="font-medium text-neutral-200 hover:text-white underline decoration-dotted underline-offset-4"
+                title="Click to rename"
+              >
+                {deviceName}
+              </button>
+            )}
+          </div>
         </header>
 
         <div className="rounded-2xl bg-neutral-900 border border-neutral-800 p-6 space-y-6">
