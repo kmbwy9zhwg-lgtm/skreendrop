@@ -607,6 +607,8 @@ function HostPage() {
             open={true}
             onClose={() => {}}
             onUnread={setUnread}
+            canTag={true}
+            participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
           />
         </div>
       </div>
@@ -651,6 +653,8 @@ function HostPage() {
           open={chatOpen}
           onClose={() => setChatOpen(false)}
           onUnread={setUnread}
+          canTag={true}
+          participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
         />
       </div>
     </div>
