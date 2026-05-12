@@ -33,10 +33,15 @@ function ViewerPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasCam, setHasCam] = useState(false);
   const [showCam, setShowCam] = useState(true);
+  const [shareSources, setShareSources] = useState<Array<{ id: string; ownerName: string; label: string }>>([]);
+  const [activeSourceId, setActiveSourceId] = useState<string | null>(null);
+  const [sharingScreen, setSharingScreen] = useState(false);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Viewer");
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const micSenderRef = useRef<RTCRtpSender | null>(null);
+  const viewerScreenStreamRef = useRef<MediaStream | null>(null);
+  const viewerScreenSendersRef = useRef<RTCRtpSender[]>([]);
 
   // Draggable cam overlay
   const [camPos, setCamPos] = useState<{ x: number; y: number } | null>(null);
@@ -53,13 +58,22 @@ function ViewerPage() {
     return () => document.removeEventListener("fullscreenchange", onFs);
   }, []);
 
+  useEffect(() => {
+    applyStreams();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSourceId]);
+
   function applyStreams() {
     const { screenId, camId } = metaRef.current;
     const map = incomingStreamsRef.current;
+    const selectedStream =
+      (activeSourceId && map.get(activeSourceId)) ||
+      (screenId ? map.get(screenId) : null) ||
+      (camId ? map.get(camId) : null);
+
     if (videoRef.current) {
-      const s = screenId ? map.get(screenId) : null;
-      if (videoRef.current.srcObject !== s) {
-        videoRef.current.srcObject = s ?? null;
+      if (videoRef.current.srcObject !== selectedStream) {
+        videoRef.current.srcObject = selectedStream ?? null;
       }
     }
     const cs = camId ? map.get(camId) : null;
@@ -110,6 +124,16 @@ function ViewerPage() {
         camId: payload.camId ?? null,
       };
       applyStreams();
+    });
+
+    channel.on("broadcast", { event: "share-meta" }, ({ payload }) => {
+      const sources = (payload as { sources: Array<{ id: string; ownerName: string; label: string }> }).sources || [];
+      setShareSources(sources);
+      setActiveSourceId((current) =>
+        current && sources.some((source) => source.id === current)
+          ? current
+          : sources[0]?.id ?? null
+      );
     });
 
     channel.on("broadcast", { event: "signal" }, async ({ payload }) => {
@@ -163,6 +187,11 @@ function ViewerPage() {
           micSenderRef.current = pc.addTrack(
             micTrackRef.current,
             new MediaStream([micTrackRef.current])
+          );
+        }
+        if (viewerScreenStreamRef.current && viewerScreenSendersRef.current.length === 0) {
+          viewerScreenSendersRef.current = viewerScreenStreamRef.current.getTracks().map((track) =>
+            pc.addTrack(track, viewerScreenStreamRef.current!)
           );
         }
 
@@ -290,6 +319,37 @@ function ViewerPage() {
     });
   }
 
+  async function startSharingScreen() {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      });
+      viewerScreenStreamRef.current = stream;
+      setSharingScreen(true);
+      if (pcRef.current) {
+        viewerScreenSendersRef.current = stream.getTracks().map((track) =>
+          pcRef.current!.addTrack(track, stream)
+        );
+        await renegotiate();
+      }
+      stream.getVideoTracks()[0]?.addEventListener("ended", stopSharingScreen);
+    } catch (e) {
+      console.warn(e);
+    }
+  }
+
+  async function stopSharingScreen() {
+    viewerScreenSendersRef.current.forEach((sender) => {
+      sender.track && pcRef.current?.removeTrack(sender);
+    });
+    viewerScreenSendersRef.current = [];
+    viewerScreenStreamRef.current?.getTracks().forEach((track) => track.stop());
+    viewerScreenStreamRef.current = null;
+    setSharingScreen(false);
+    await renegotiate();
+  }
+
   // Drag handlers for cam overlay
   function onCamPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     const target = e.currentTarget;
@@ -336,8 +396,20 @@ function ViewerPage() {
           <span className="hidden sm:inline">·</span>
           <span>{status}</span>
           <button
+            onClick={() => {
+              if (sharingScreen) {
+                stopSharingScreen();
+              } else {
+                startSharingScreen();
+              }
+            }}
+            className="relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+          >
+            {sharingScreen ? "Stop share" : "Share screen"}
+          </button>
+          <button
             onClick={() => setChatOpen((o) => !o)}
-            className="lg:hidden relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+            className="relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
           >
             Chat
             {unread > 0 && !chatOpen && (
@@ -348,6 +420,24 @@ function ViewerPage() {
           </button>
         </div>
       </header>
+      {shareSources.length > 0 && (
+        <div className="px-4 py-2 border-b border-neutral-900 bg-neutral-950 text-xs text-neutral-300 flex flex-wrap gap-2">
+          {shareSources.map((source) => (
+            <button
+              key={source.id}
+              type="button"
+              onClick={() => setActiveSourceId(source.id)}
+              className={`rounded-full border px-3 py-1 transition ${
+                activeSourceId === source.id
+                  ? "bg-white text-black border-white"
+                  : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:bg-neutral-800"
+              }`}
+            >
+              {source.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex-1 flex min-h-0">
         <main className="flex-1 flex flex-col min-w-0 p-3 sm:p-4">
@@ -435,8 +525,8 @@ function ViewerPage() {
             roomId={roomId}
             selfId={selfId || "anon"}
             selfName={selfName}
-            open={true}
-            onClose={() => {}}
+            open={chatOpen}
+            onClose={() => setChatOpen(false)}
             onUnread={setUnread}
           />
         </div>
