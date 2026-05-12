@@ -12,6 +12,10 @@ export type ChatMessage = {
   kind?: "text" | "image" | "audio" | "file";
   url?: string;
   mimeType?: string;
+  replyTo?: string; // ID of message being replied to
+  replyText?: string; // Preview text of replied message
+  replyName?: string; // Name of person who sent the replied message
+  taggedUsers?: string[]; // Array of user names that were tagged
 };
 
 type Props = {
@@ -34,11 +38,16 @@ export default function StreamChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [text, setText] = useState("");
   const [typingUser, setTypingUser] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const unreadRef = useRef(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   useEffect(() => {
     const ch = supabase.channel(`chat:${roomId}`, {
@@ -49,6 +58,12 @@ export default function StreamChat({
     ch.on("broadcast", { event: "msg" }, ({ payload }) => {
       const m = payload as ChatMessage;
       setMessages((prev) => [...prev, m]);
+
+      // Check if user was tagged
+      if (m.taggedUsers && m.taggedUsers.some(tag => tag.toLowerCase() === selfName.toLowerCase())) {
+        setNotification(`You were tagged by ${m.name}`);
+        setTimeout(() => setNotification(null), 3000);
+      }
     });
 
     ch.on("broadcast", { event: "typing" }, ({ payload }) => {
@@ -86,16 +101,30 @@ export default function StreamChat({
   const send = () => {
     const t = text.trim();
     if (!t) return;
+
+    // Parse tagged users (@username)
+    const taggedUsers = [];
+    const mentionRegex = /@(\w+)/g;
+    let match;
+    while ((match = mentionRegex.exec(t)) !== null) {
+      taggedUsers.push(match[1]);
+    }
+
     const msg: ChatMessage = {
       id: Math.random().toString(36).slice(2),
       from: selfId,
       name: selfName,
       text: t.slice(0, 500),
       ts: Date.now(),
+      replyTo: replyTo?.id,
+      replyText: replyTo?.text,
+      replyName: replyTo?.name,
+      taggedUsers: taggedUsers.length > 0 ? taggedUsers : undefined,
     };
     channelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
     setMessages((prev) => [...prev, { ...msg, self: true }]);
     setText("");
+    setReplyTo(null);
   };
 
   const sendFile = async (file: File) => {
@@ -122,10 +151,14 @@ export default function StreamChat({
       kind,
       url: dataUrl,
       mimeType: file.type,
+      replyTo: replyTo?.id,
+      replyText: replyTo?.text,
+      replyName: replyTo?.name,
     };
     channelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
     setMessages((prev) => [...prev, { ...msg, self: true }]);
     fileInputRef.current && (fileInputRef.current.value = "");
+    setReplyTo(null);
   };
 
   const onChange = (v: string) => {
@@ -135,6 +168,63 @@ export default function StreamChat({
       event: "typing",
       payload: { from: selfId, name: selfName },
     });
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+        sendAudioMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const sendAudioMessage = async (audioBlob: Blob) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(audioBlob);
+    });
+
+    const msg: ChatMessage = {
+      id: Math.random().toString(36).slice(2),
+      from: selfId,
+      name: selfName,
+      text: "Voice message",
+      ts: Date.now(),
+      kind: "audio",
+      url: dataUrl,
+      mimeType: audioBlob.type,
+      replyTo: replyTo?.id,
+      replyText: replyTo?.text,
+      replyName: replyTo?.name,
+    };
+    channelRef.current?.send({ type: "broadcast", event: "msg", payload: msg });
+    setMessages((prev) => [...prev, { ...msg, self: true }]);
+    setReplyTo(null);
   };
 
   return (
@@ -155,6 +245,11 @@ export default function StreamChat({
           ✕
         </button>
       </div>
+      {notification && (
+        <div className="mx-3 mt-3 px-3 py-2 bg-blue-500 text-white text-sm rounded-lg animate-pulse">
+          {notification}
+        </div>
+      )}
       <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
         {messages.length === 0 ? (
           <p className="text-xs text-neutral-500 text-center mt-4">
@@ -164,18 +259,35 @@ export default function StreamChat({
           messages.map((m) => (
             <div
               key={m.id}
-              className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
+              className={`group max-w-[85%] rounded-2xl px-3 py-1.5 text-sm break-words ${
                 m.self
                   ? "ml-auto bg-white text-black"
                   : "bg-neutral-800 text-neutral-100"
               }`}
             >
               {!m.self && (
-                <div className="text-[10px] uppercase tracking-wide text-neutral-400 mb-0.5">
-                  {m.name}
+                <div className="flex items-center justify-between mb-0.5">
+                  <div className="text-[10px] uppercase tracking-wide text-neutral-400">
+                    {m.name}
+                  </div>
+                  <button
+                    onClick={() => setReplyTo(m)}
+                    className="text-[10px] text-neutral-400 hover:text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Reply"
+                  >
+                    ↩️
+                  </button>
                 </div>
               )}
-              <div>{m.text}</div>
+              {m.replyTo && m.replyText && (
+                <div className={`mb-2 p-2 rounded text-xs ${
+                  m.self ? "bg-black/20" : "bg-neutral-700"
+                }`}>
+                  <div className="text-neutral-400">Replying to {m.replyName}:</div>
+                  <div className="truncate">{m.replyText}</div>
+                </div>
+              )}
+              <div className={m.taggedUsers ? "font-semibold" : ""}>{m.text}</div>
               {m.kind === "image" && m.url && (
                 <img
                   src={m.url}
@@ -207,6 +319,23 @@ export default function StreamChat({
       <div className="px-3 h-5 text-xs text-neutral-500">
         {typingUser ? `${typingUser} is typing…` : ""}
       </div>
+      {replyTo && (
+        <div className="px-3 py-2 bg-neutral-800 border-t border-neutral-700">
+          <div className="flex items-center justify-between text-xs">
+            <div>
+              <span className="text-neutral-400">Replying to </span>
+              <span className="text-neutral-200">{replyTo.name}</span>
+            </div>
+            <button
+              onClick={() => setReplyTo(null)}
+              className="text-neutral-400 hover:text-neutral-200"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="text-neutral-300 truncate mt-1">{replyTo.text}</div>
+        </div>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -230,15 +359,51 @@ export default function StreamChat({
           onClick={() => fileInputRef.current?.click()}
           className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
         >
-          Attach
+          📎
+        </button>
+        <button
+          type="button"
+          onClick={isRecording ? stopRecording : startRecording}
+          className={`px-3 rounded-lg text-sm ${
+            isRecording
+              ? "bg-red-500 text-white animate-pulse"
+              : "bg-neutral-800 border border-neutral-700 text-neutral-100 hover:bg-neutral-700"
+          }`}
+          title={isRecording ? "Stop recording" : "Record voice message"}
+        >
+          🎤
         </button>
         <input
           value={text}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Message…"
+          placeholder="Message… (use @name to tag)"
           maxLength={500}
           className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-500"
         />
+        <button
+          type="button"
+          onClick={() => {
+            // Screenshot functionality for viewers
+            const video = document.querySelector('video');
+            if (video) {
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(video, 0, 0);
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  const file = new File([blob], `screenshot-${Date.now()}.png`, { type: 'image/png' });
+                  sendFile(file);
+                }
+              });
+            }
+          }}
+          className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
+          title="Take screenshot"
+        >
+          📸
+        </button>
         <button
           type="submit"
           className="px-3 rounded-lg bg-white text-black text-sm font-medium hover:bg-neutral-200"
