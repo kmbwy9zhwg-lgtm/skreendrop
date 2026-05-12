@@ -408,7 +408,7 @@ export default function StreamChat({
           ))}
         </div>
       )}
-      <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2">
+      <div ref={listRef} className="flex-1 overflow-y-auto px-3 py-3 space-y-2 overscroll-behavior-contain">
         {filteredMessages.length === 0 ? (
           <p className="text-xs text-neutral-500 text-center mt-4">
             No messages yet. Say hi 👋
