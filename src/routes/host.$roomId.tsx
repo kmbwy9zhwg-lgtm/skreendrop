@@ -216,6 +216,11 @@ function HostPage() {
       const ownerName = viewers.find((v) => v.id === viewerId)?.name ?? "Viewer";
       const hasVideo = stream.getVideoTracks().length > 0;
       if (hasVideo && !viewerShareSourcesRef.current.has(stream.id)) {
+        // Enforce 4-share limit (host screen + 3 viewer screens max)
+        if (viewerShareSourcesRef.current.size >= 3) {
+          console.warn("Maximum 4 concurrent shares (1 host + 3 viewers) reached. Rejecting share from", ownerName);
+          return;
+        }
         const clonedTracks = stream.getTracks().map((track) => track.clone());
         const clonedStream = new MediaStream(clonedTracks);
         viewerShareSourcesRef.current.set(stream.id, {
