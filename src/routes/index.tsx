@@ -17,7 +17,7 @@ export const Route = createFileRoute("/")({
   component: Home,
   head: () => ({
     meta: [
-      { title: "ScreenDrop — Instant screen sharing" },
+      { title: "Skreendrop — Instant screen sharing" },
       {
         name: "description",
         content:
@@ -194,7 +194,7 @@ function Home() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">ScreenDrop</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Skreendrop</h1>
           <p className="text-sm text-neutral-500 mt-2">
             Instant browser screen sharing
           </p>
