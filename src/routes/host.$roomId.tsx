@@ -52,6 +52,7 @@ function HostPage() {
   const [micOn, setMicOn] = useState(false);
   const [screenAudioMuted, setScreenAudioMuted] = useState(false);
   const [quality, setQuality] = useState<QualityKey>("auto");
+  const qualityRef = useRef<QualityKey>("auto");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const camPreviewRef = useRef<HTMLVideoElement>(null);
