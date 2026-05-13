@@ -691,6 +691,23 @@ function HostPage() {
                   icon="🔊"
                   disabled={!screenStreamRef.current?.getAudioTracks().length}
                 />
+                <div className="flex items-center gap-1.5 rounded-xl bg-neutral-900 border border-neutral-800 px-2 py-1.5">
+                  <span aria-hidden className="text-sm">⚙️</span>
+                  <label htmlFor="quality" className="sr-only">Stream quality</label>
+                  <select
+                    id="quality"
+                    value={quality}
+                    onChange={(e) => applyQuality(e.target.value as QualityKey)}
+                    className="bg-transparent text-sm text-neutral-200 outline-none cursor-pointer pr-1"
+                    title={QUALITY_PRESETS[quality].desc}
+                  >
+                    {(Object.keys(QUALITY_PRESETS) as QualityKey[]).map((k) => (
+                      <option key={k} value={k} className="bg-neutral-900">
+                        {QUALITY_PRESETS[k].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   onClick={stopSharing}
                   className="ml-auto px-4 py-2 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 text-sm"
