@@ -13,15 +13,63 @@ import {
 } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
 
+const SITE_URL = "https://skreendrop.lovable.app";
+
 export const Route = createFileRoute("/")({
   component: Home,
   head: () => ({
     meta: [
-      { title: "Skreendrop — Instant screen sharing" },
+      { title: "Skreendrop — Free browser screen sharing & live streaming" },
       {
         name: "description",
         content:
-          "Share your screen with anyone via a link, or instantly with devices on your network.",
+          "Skreendrop is a free, no-signup browser screen sharing app. Stream your screen, webcam and audio in HD to anyone via a link, with live chat and adjustable quality.",
+      },
+      {
+        name: "keywords",
+        content:
+          "screen sharing, free screen share, browser screen sharing, share screen online, live screen streaming, webrtc screen share, no signup screen sharing, present online, share desktop browser",
+      },
+      { property: "og:title", content: "Skreendrop — Free browser screen sharing" },
+      {
+        property: "og:description",
+        content:
+          "Share your screen with anyone in seconds. HD streaming, live chat, webcam overlay — right in your browser.",
+      },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: SITE_URL },
+      { property: "og:image", content: `${SITE_URL}/og-image.png` },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Skreendrop — Free browser screen sharing" },
+      {
+        name: "twitter:description",
+        content: "Free, no-signup HD screen sharing in your browser.",
+      },
+      { name: "twitter:image", content: `${SITE_URL}/og-image.png` },
+    ],
+    links: [{ rel: "canonical", href: SITE_URL }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          name: "Skreendrop",
+          url: SITE_URL,
+          applicationCategory: "CommunicationApplication",
+          operatingSystem: "Any (browser-based)",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+          description:
+            "Free, no-signup browser screen sharing with HD live streaming, chat, webcam overlay and adjustable quality.",
+          featureList: [
+            "Browser-based screen sharing",
+            "HD live streaming up to 1440p60",
+            "Adjustable stream quality",
+            "Live chat with viewers",
+            "Webcam and microphone overlay",
+            "No signup or install required",
+          ],
+        }),
       },
     ],
   }),
