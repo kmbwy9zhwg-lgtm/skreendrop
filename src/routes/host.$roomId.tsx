@@ -8,8 +8,37 @@ import { getNetworkId } from "@/lib/network.functions";
 import StreamChat from "@/components/StreamChat";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+type QualityKey = "auto" | "low" | "medium" | "high" | "ultra";
+
+const QUALITY_PRESETS: Record<
+  QualityKey,
+  { label: string; width?: number; height?: number; frameRate: number; bitrate: number; desc: string }
+> = {
+  auto: { label: "Auto", frameRate: 30, bitrate: 2_500_000, desc: "Adapts to network" },
+  low: { label: "Low · 480p", width: 854, height: 480, frameRate: 15, bitrate: 800_000, desc: "Low bandwidth" },
+  medium: { label: "Medium · 720p", width: 1280, height: 720, frameRate: 30, bitrate: 2_500_000, desc: "Balanced" },
+  high: { label: "High · 1080p", width: 1920, height: 1080, frameRate: 30, bitrate: 5_000_000, desc: "Sharp detail" },
+  ultra: { label: "Ultra · 1440p60", width: 2560, height: 1440, frameRate: 60, bitrate: 8_000_000, desc: "Gaming / motion" },
+};
+
 export const Route = createFileRoute("/host/$roomId")({
   component: HostPage,
+  head: ({ params }) => ({
+    meta: [
+      { title: `Live screen share · Room ${params.roomId} — Skreendrop` },
+      {
+        name: "description",
+        content:
+          "Hosting a live screen share session on Skreendrop. Invite viewers with a link — no signup, no install, full HD streaming in your browser.",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+      { property: "og:title", content: `Live screen share · Skreendrop` },
+      {
+        property: "og:description",
+        content: "Real-time browser screen sharing with chat, webcam overlay and adjustable quality.",
+      },
+    ],
+  }),
 });
 
 function HostPage() {
