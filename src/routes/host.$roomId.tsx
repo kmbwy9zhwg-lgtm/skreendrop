@@ -515,6 +515,45 @@ function HostPage() {
     setScreenAudioMuted(next);
   }
 
+  async function applyQuality(key: QualityKey) {
+    setQuality(key);
+    const preset = QUALITY_PRESETS[key];
+    const ss = screenStreamRef.current;
+    if (ss) {
+      const vt = ss.getVideoTracks()[0];
+      if (vt) {
+        const constraints: MediaTrackConstraints = { frameRate: preset.frameRate };
+        if (preset.width && preset.height) {
+          constraints.width = { ideal: preset.width };
+          constraints.height = { ideal: preset.height };
+        }
+        try {
+          await vt.applyConstraints(constraints);
+        } catch (e) {
+          console.warn("applyConstraints failed", e);
+        }
+      }
+    }
+    // Update encoding bitrate on every viewer connection
+    for (const pc of peersRef.current.values()) {
+      for (const sender of pc.getSenders()) {
+        if (!sender.track || sender.track.kind !== "video") continue;
+        if (camStreamRef.current && sender.track === camStreamRef.current.getVideoTracks()[0]) continue;
+        try {
+          const params = sender.getParameters();
+          if (!params.encodings || params.encodings.length === 0) {
+            params.encodings = [{}];
+          }
+          params.encodings[0].maxBitrate = preset.bitrate;
+          params.encodings[0].maxFramerate = preset.frameRate;
+          await sender.setParameters(params);
+        } catch (e) {
+          console.warn("setParameters failed", e);
+        }
+      }
+    }
+  }
+
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
