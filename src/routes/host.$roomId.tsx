@@ -294,6 +294,21 @@ function HostPage() {
 
   async function sendOfferTo(viewerId: string, pc: RTCPeerConnection) {
     syncTracks(pc, viewerId);
+    // Apply current quality to all video senders for this peer
+    const preset = QUALITY_PRESETS[qualityRef.current];
+    for (const sender of pc.getSenders()) {
+      if (!sender.track || sender.track.kind !== "video") continue;
+      if (camStreamRef.current && sender.track === camStreamRef.current.getVideoTracks()[0]) continue;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+        params.encodings[0].maxBitrate = preset.bitrate;
+        params.encodings[0].maxFramerate = preset.frameRate;
+        await sender.setParameters(params);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     channelRef.current?.send({
