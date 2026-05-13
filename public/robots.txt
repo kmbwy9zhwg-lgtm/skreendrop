@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /r/
+Disallow: /host/
+
+Sitemap: https://skreendrop.lovable.app/sitemap.xml
