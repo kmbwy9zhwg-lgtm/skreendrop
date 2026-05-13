@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as FreeScreenSharingRouteImport } from './routes/free-screen-sharing'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as RRoomIdRouteImport } from './routes/r.$roomId'
 import { Route as HostRoomIdRouteImport } from './routes/host.$roomId'
@@ -17,6 +18,11 @@ import { Route as HostRoomIdRouteImport } from './routes/host.$roomId'
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FreeScreenSharingRoute = FreeScreenSharingRouteImport.update({
+  id: '/free-screen-sharing',
+  path: '/free-screen-sharing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -37,12 +43,14 @@ const HostRoomIdRoute = HostRoomIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/free-screen-sharing': typeof FreeScreenSharingRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/host/$roomId': typeof HostRoomIdRoute
   '/r/$roomId': typeof RRoomIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/free-screen-sharing': typeof FreeScreenSharingRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/host/$roomId': typeof HostRoomIdRoute
   '/r/$roomId': typeof RRoomIdRoute
@@ -50,20 +58,38 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/free-screen-sharing': typeof FreeScreenSharingRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/host/$roomId': typeof HostRoomIdRoute
   '/r/$roomId': typeof RRoomIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/sitemap.xml' | '/host/$roomId' | '/r/$roomId'
+  fullPaths:
+    | '/'
+    | '/free-screen-sharing'
+    | '/sitemap.xml'
+    | '/host/$roomId'
+    | '/r/$roomId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/sitemap.xml' | '/host/$roomId' | '/r/$roomId'
-  id: '__root__' | '/' | '/sitemap.xml' | '/host/$roomId' | '/r/$roomId'
+  to:
+    | '/'
+    | '/free-screen-sharing'
+    | '/sitemap.xml'
+    | '/host/$roomId'
+    | '/r/$roomId'
+  id:
+    | '__root__'
+    | '/'
+    | '/free-screen-sharing'
+    | '/sitemap.xml'
+    | '/host/$roomId'
+    | '/r/$roomId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  FreeScreenSharingRoute: typeof FreeScreenSharingRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   HostRoomIdRoute: typeof HostRoomIdRoute
   RRoomIdRoute: typeof RRoomIdRoute
@@ -76,6 +102,13 @@ declare module '@tanstack/react-router' {
       path: '/sitemap.xml'
       fullPath: '/sitemap.xml'
       preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/free-screen-sharing': {
+      id: '/free-screen-sharing'
+      path: '/free-screen-sharing'
+      fullPath: '/free-screen-sharing'
+      preLoaderRoute: typeof FreeScreenSharingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -104,6 +137,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  FreeScreenSharingRoute: FreeScreenSharingRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   HostRoomIdRoute: HostRoomIdRoute,
   RRoomIdRoute: RRoomIdRoute,

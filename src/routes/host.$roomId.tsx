@@ -8,8 +8,37 @@ import { getNetworkId } from "@/lib/network.functions";
 import StreamChat from "@/components/StreamChat";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
+type QualityKey = "auto" | "low" | "medium" | "high" | "ultra";
+
+const QUALITY_PRESETS: Record<
+  QualityKey,
+  { label: string; width?: number; height?: number; frameRate: number; bitrate: number; desc: string }
+> = {
+  auto: { label: "Auto", frameRate: 30, bitrate: 2_500_000, desc: "Adapts to network" },
+  low: { label: "Low · 480p", width: 854, height: 480, frameRate: 15, bitrate: 800_000, desc: "Low bandwidth" },
+  medium: { label: "Medium · 720p", width: 1280, height: 720, frameRate: 30, bitrate: 2_500_000, desc: "Balanced" },
+  high: { label: "High · 1080p", width: 1920, height: 1080, frameRate: 30, bitrate: 5_000_000, desc: "Sharp detail" },
+  ultra: { label: "Ultra · 1440p60", width: 2560, height: 1440, frameRate: 60, bitrate: 8_000_000, desc: "Gaming / motion" },
+};
+
 export const Route = createFileRoute("/host/$roomId")({
   component: HostPage,
+  head: ({ params }) => ({
+    meta: [
+      { title: `Live screen share · Room ${params.roomId} — Skreendrop` },
+      {
+        name: "description",
+        content:
+          "Hosting a live screen share session on Skreendrop. Invite viewers with a link — no signup, no install, full HD streaming in your browser.",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+      { property: "og:title", content: `Live screen share · Skreendrop` },
+      {
+        property: "og:description",
+        content: "Real-time browser screen sharing with chat, webcam overlay and adjustable quality.",
+      },
+    ],
+  }),
 });
 
 function HostPage() {
@@ -22,6 +51,8 @@ function HostPage() {
   const [camOn, setCamOn] = useState(false);
   const [micOn, setMicOn] = useState(false);
   const [screenAudioMuted, setScreenAudioMuted] = useState(false);
+  const [quality, setQuality] = useState<QualityKey>("auto");
+  const qualityRef = useRef<QualityKey>("auto");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const camPreviewRef = useRef<HTMLVideoElement>(null);
@@ -263,6 +294,21 @@ function HostPage() {
 
   async function sendOfferTo(viewerId: string, pc: RTCPeerConnection) {
     syncTracks(pc, viewerId);
+    // Apply current quality to all video senders for this peer
+    const preset = QUALITY_PRESETS[qualityRef.current];
+    for (const sender of pc.getSenders()) {
+      if (!sender.track || sender.track.kind !== "video") continue;
+      if (camStreamRef.current && sender.track === camStreamRef.current.getVideoTracks()[0]) continue;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+        params.encodings[0].maxBitrate = preset.bitrate;
+        params.encodings[0].maxFramerate = preset.frameRate;
+        await sender.setParameters(params);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
     channelRef.current?.send({
@@ -485,6 +531,46 @@ function HostPage() {
     setScreenAudioMuted(next);
   }
 
+  async function applyQuality(key: QualityKey) {
+    setQuality(key);
+    qualityRef.current = key;
+    const preset = QUALITY_PRESETS[key];
+    const ss = screenStreamRef.current;
+    if (ss) {
+      const vt = ss.getVideoTracks()[0];
+      if (vt) {
+        const constraints: MediaTrackConstraints = { frameRate: preset.frameRate };
+        if (preset.width && preset.height) {
+          constraints.width = { ideal: preset.width };
+          constraints.height = { ideal: preset.height };
+        }
+        try {
+          await vt.applyConstraints(constraints);
+        } catch (e) {
+          console.warn("applyConstraints failed", e);
+        }
+      }
+    }
+    // Update encoding bitrate on every viewer connection
+    for (const pc of peersRef.current.values()) {
+      for (const sender of pc.getSenders()) {
+        if (!sender.track || sender.track.kind !== "video") continue;
+        if (camStreamRef.current && sender.track === camStreamRef.current.getVideoTracks()[0]) continue;
+        try {
+          const params = sender.getParameters();
+          if (!params.encodings || params.encodings.length === 0) {
+            params.encodings = [{}];
+          }
+          params.encodings[0].maxBitrate = preset.bitrate;
+          params.encodings[0].maxFramerate = preset.frameRate;
+          await sender.setParameters(params);
+        } catch (e) {
+          console.warn("setParameters failed", e);
+        }
+      }
+    }
+  }
+
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);
     setCopied(true);
@@ -605,6 +691,23 @@ function HostPage() {
                   icon="🔊"
                   disabled={!screenStreamRef.current?.getAudioTracks().length}
                 />
+                <div className="flex items-center gap-1.5 rounded-xl bg-neutral-900 border border-neutral-800 px-2 py-1.5">
+                  <span aria-hidden className="text-sm">⚙️</span>
+                  <label htmlFor="quality" className="sr-only">Stream quality</label>
+                  <select
+                    id="quality"
+                    value={quality}
+                    onChange={(e) => applyQuality(e.target.value as QualityKey)}
+                    className="bg-transparent text-sm text-neutral-200 outline-none cursor-pointer pr-1"
+                    title={QUALITY_PRESETS[quality].desc}
+                  >
+                    {(Object.keys(QUALITY_PRESETS) as QualityKey[]).map((k) => (
+                      <option key={k} value={k} className="bg-neutral-900">
+                        {QUALITY_PRESETS[k].label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   onClick={stopSharing}
                   className="ml-auto px-4 py-2 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 text-sm"
