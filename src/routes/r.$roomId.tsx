@@ -8,6 +8,22 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export const Route = createFileRoute("/r/$roomId")({
   component: ViewerPage,
+  head: ({ params }) => ({
+    meta: [
+      { title: `Watch live screen share · Room ${params.roomId} — Skreendrop` },
+      {
+        name: "description",
+        content:
+          "Join a live screen sharing session on Skreendrop. Watch presentations, tutorials and gameplay directly in your browser — no signup, no install.",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+      { property: "og:title", content: "Watch a live screen share · Skreendrop" },
+      {
+        property: "og:description",
+        content: "Tap to join a live browser screen sharing session with chat and HD streaming.",
+      },
+    ],
+  }),
 });
 
 function ViewerPage() {
