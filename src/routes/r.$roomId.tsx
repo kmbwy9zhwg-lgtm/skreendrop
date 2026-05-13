@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ICE_SERVERS, makePeerId } from "@/lib/webrtc";
@@ -12,6 +12,7 @@ export const Route = createFileRoute("/r/$roomId")({
 
 function ViewerPage() {
   const { roomId } = Route.useParams();
+  const navigate = useNavigate();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const camRef = useRef<HTMLVideoElement>(null);
@@ -396,16 +397,10 @@ function ViewerPage() {
           <span className="hidden sm:inline">·</span>
           <span>{status}</span>
           <button
-            onClick={() => {
-              if (sharingScreen) {
-                stopSharingScreen();
-              } else {
-                startSharingScreen();
-              }
-            }}
+            onClick={() => navigate({ to: "/" })}
             className="relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
           >
-            {sharingScreen ? "Stop share" : "Share screen"}
+            Share screen
           </button>
           <button
             onClick={() => setChatOpen((o) => !o)}
