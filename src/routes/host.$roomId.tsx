@@ -518,6 +518,7 @@ function HostPage() {
 
   async function applyQuality(key: QualityKey) {
     setQuality(key);
+    qualityRef.current = key;
     const preset = QUALITY_PRESETS[key];
     const ss = screenStreamRef.current;
     if (ss) {
