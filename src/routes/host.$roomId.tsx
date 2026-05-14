@@ -459,10 +459,31 @@ function HostPage() {
   async function startSharing() {
     setError(null);
     try {
-      const ms = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30 } as MediaTrackConstraints,
-        audio: true,
-      });
+      // Mobile browsers don't support getDisplayMedia — fall back to the
+      // device's back camera so phone users can still broadcast something.
+      const canShareScreen =
+        typeof navigator !== "undefined" &&
+        !!navigator.mediaDevices &&
+        typeof navigator.mediaDevices.getDisplayMedia === "function" &&
+        getDeviceType() !== "mobile";
+
+      let ms: MediaStream;
+      if (canShareScreen) {
+        ms = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: 30 } as MediaTrackConstraints,
+          audio: true,
+        });
+      } else {
+        ms = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          },
+          audio: true,
+        });
+      }
       screenStreamRef.current = ms;
       setStream(ms);
       if (videoRef.current) {
