@@ -12,6 +12,7 @@ import {
   type DeviceType,
 } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
+import HowItWorksButton from "@/components/HowItWorksButton";
 
 const SITE_URL = "https://skreendrop.lovable.app";
 
