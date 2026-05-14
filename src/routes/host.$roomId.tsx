@@ -519,9 +519,44 @@ function HostPage() {
     setStream(null);
     setCamOn(false);
     setMicOn(false);
+    setCameraMode(false);
     peersRef.current.forEach((pc) => pc.close());
     peersRef.current.clear();
     setViewerCount(0);
+  }
+
+  async function flipCamera() {
+    if (!cameraMode || !screenStreamRef.current) return;
+    const next: "user" | "environment" = cameraMode === "environment" ? "user" : "environment";
+    setFlipping(true);
+    setError(null);
+    try {
+      const preset = QUALITY_PRESETS[qualityRef.current];
+      const ms = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: next },
+          width: { ideal: preset.width ?? 1280 },
+          height: { ideal: preset.height ?? 720 },
+          frameRate: { ideal: preset.frameRate },
+        },
+        audio: true,
+      });
+      // Stop old tracks
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = ms;
+      setStream(ms);
+      setCameraMode(next);
+      if (videoRef.current) {
+        videoRef.current.srcObject = ms;
+        videoRef.current.play().catch(() => {});
+      }
+      ms.getVideoTracks()[0].addEventListener("ended", stopSharing);
+      await renegotiateAll();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to flip camera");
+    } finally {
+      setFlipping(false);
+    }
   }
 
   async function toggleCam() {
