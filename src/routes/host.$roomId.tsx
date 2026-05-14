@@ -6,6 +6,7 @@ import { ICE_SERVERS, makePeerId } from "@/lib/webrtc";
 import { getDeviceId, getDeviceName, getDeviceType } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
 import StreamChat from "@/components/StreamChat";
+import HowItWorksButton from "@/components/HowItWorksButton";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 type QualityKey = "auto" | "low" | "medium" | "high" | "ultra";
@@ -458,10 +459,31 @@ function HostPage() {
   async function startSharing() {
     setError(null);
     try {
-      const ms = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 30 } as MediaTrackConstraints,
-        audio: true,
-      });
+      // Mobile browsers don't support getDisplayMedia — fall back to the
+      // device's back camera so phone users can still broadcast something.
+      const canShareScreen =
+        typeof navigator !== "undefined" &&
+        !!navigator.mediaDevices &&
+        typeof navigator.mediaDevices.getDisplayMedia === "function" &&
+        getDeviceType() !== "mobile";
+
+      let ms: MediaStream;
+      if (canShareScreen) {
+        ms = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: 30 } as MediaTrackConstraints,
+          audio: true,
+        });
+      } else {
+        ms = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          },
+          audio: true,
+        });
+      }
       screenStreamRef.current = ms;
       setStream(ms);
       if (videoRef.current) {
@@ -634,6 +656,7 @@ function HostPage() {
           >
             Viewers
           </button>
+          <HowItWorksButton className="ml-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700 text-xs text-neutral-200" label="How it works" />
         </div>
       </header>
 

@@ -12,6 +12,7 @@ import {
   type DeviceType,
 } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
+import HowItWorksButton from "@/components/HowItWorksButton";
 
 const SITE_URL = "https://skreendrop.lovable.app";
 
@@ -246,6 +247,9 @@ function Home() {
           <p className="text-sm text-neutral-500 mt-2">
             Instant browser screen sharing
           </p>
+          <div className="mt-3 flex justify-center">
+            <HowItWorksButton />
+          </div>
           <div className="mt-4 flex items-center justify-center gap-2 text-sm">
             <span className="text-neutral-500">You are</span>
             {editingName ? (
