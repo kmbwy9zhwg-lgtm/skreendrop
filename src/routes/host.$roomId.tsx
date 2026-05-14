@@ -103,6 +103,21 @@ function HostPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
 
+  // Keep the local preview <video> bound to the active screen stream.
+  // Without this, when `sharing` flips from false→true the <video> element
+  // is mounted *after* startSharing() set srcObject, leaving the host with a
+  // black preview while viewers see the stream fine.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (stream) {
+      if (v.srcObject !== stream) v.srcObject = stream;
+      v.play().catch(() => {});
+    } else {
+      v.srcObject = null;
+    }
+  }, [stream]);
+
   useEffect(() => {
     sharingRef.current = !!stream;
     const lobby = lobbyRef.current;
