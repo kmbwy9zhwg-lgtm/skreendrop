@@ -55,11 +55,11 @@ function ViewerPage() {
   const [sharingScreen, setSharingScreen] = useState(false);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Viewer");
-  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const micSenderRef = useRef<RTCRtpSender | null>(null);
   const camTrackRef = useRef<MediaStreamTrack | null>(null);
   const camSenderRef = useRef<RTCRtpSender | null>(null);
+  const currentCamFacingRef = useRef<"user" | "environment">("user");
   const viewerScreenStreamRef = useRef<MediaStream | null>(null);
   const viewerScreenSendersRef = useRef<RTCRtpSender[]>([]);
 
@@ -302,37 +302,38 @@ function ViewerPage() {
   }
 
   async function flipCamera() {
-    // Stop current camera
-    if (camTrackRef.current) {
-      camSenderRef.current?.replaceTrack(null);
-      camTrackRef.current.stop();
-      camTrackRef.current = null;
-      camSenderRef.current = null;
-    }
-
-    // Switch facing mode
-    const newFacing: "user" | "environment" = cameraFacing === "user" ? "environment" : "user";
-    setCameraFacing(newFacing);
-
     try {
+      // Determine new facing mode
+      const newFacing: "user" | "environment" = 
+        currentCamFacingRef.current === "user" ? "environment" : "user";
+
+      // Request new camera stream
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: newFacing },
       });
+      
       const videoTrack = stream.getVideoTracks()[0];
-      if (videoTrack) {
-        camTrackRef.current = videoTrack;
-        if (pcRef.current) {
-          camSenderRef.current = pcRef.current.addTrack(
-            videoTrack,
-            stream
-          );
-          await renegotiate();
-        }
+      if (!videoTrack) {
+        console.warn("No video track found");
+        return;
       }
+
+      // If we have an existing camera sender, replace the track
+      if (camSenderRef.current) {
+        await camSenderRef.current.replaceTrack(videoTrack);
+      } else if (camTrackRef.current) {
+        // Stop old track
+        camTrackRef.current.stop();
+      }
+
+      // Update refs
+      camTrackRef.current = videoTrack;
+      currentCamFacingRef.current = newFacing;
+
+      // Renegotiate to send the new track
+      await renegotiate();
     } catch (e) {
-      console.warn("Camera flip failed:", e);
-      // Revert state if flip failed
-      setCameraFacing(cameraFacing);
+      console.error("Camera flip failed:", e);
     }
   }
 
