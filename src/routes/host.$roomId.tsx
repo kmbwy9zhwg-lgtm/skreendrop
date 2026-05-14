@@ -6,6 +6,7 @@ import { ICE_SERVERS, makePeerId } from "@/lib/webrtc";
 import { getDeviceId, getDeviceName, getDeviceType } from "@/lib/device";
 import { getNetworkId } from "@/lib/network.functions";
 import StreamChat from "@/components/StreamChat";
+import HowItWorksButton from "@/components/HowItWorksButton";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 type QualityKey = "auto" | "low" | "medium" | "high" | "ultra";
