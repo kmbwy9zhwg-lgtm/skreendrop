@@ -54,6 +54,8 @@ function HostPage() {
   const [screenAudioMuted, setScreenAudioMuted] = useState(false);
   const [quality, setQuality] = useState<QualityKey>("auto");
   const qualityRef = useRef<QualityKey>("auto");
+  const [cameraMode, setCameraMode] = useState<false | "environment" | "user">(false);
+  const [flipping, setFlipping] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const camPreviewRef = useRef<HTMLVideoElement>(null);
