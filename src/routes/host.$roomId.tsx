@@ -656,6 +656,7 @@ function HostPage() {
           >
             Viewers
           </button>
+          <HowItWorksButton className="ml-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700 text-xs text-neutral-200" label="How it works" />
         </div>
       </header>
 
