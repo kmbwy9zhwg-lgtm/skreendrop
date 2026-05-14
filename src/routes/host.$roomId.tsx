@@ -475,6 +475,7 @@ function HostPage() {
           video: { frameRate: 30 } as MediaTrackConstraints,
           audio: true,
         });
+        setCameraMode(false);
       } else {
         ms = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -485,6 +486,7 @@ function HostPage() {
           },
           audio: true,
         });
+        setCameraMode("environment");
       }
       screenStreamRef.current = ms;
       setStream(ms);
