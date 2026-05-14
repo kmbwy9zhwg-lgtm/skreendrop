@@ -54,6 +54,8 @@ function HostPage() {
   const [screenAudioMuted, setScreenAudioMuted] = useState(false);
   const [quality, setQuality] = useState<QualityKey>("auto");
   const qualityRef = useRef<QualityKey>("auto");
+  const [cameraMode, setCameraMode] = useState<false | "environment" | "user">(false);
+  const [flipping, setFlipping] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const camPreviewRef = useRef<HTMLVideoElement>(null);
@@ -473,6 +475,7 @@ function HostPage() {
           video: { frameRate: 30 } as MediaTrackConstraints,
           audio: true,
         });
+        setCameraMode(false);
       } else {
         ms = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -483,6 +486,7 @@ function HostPage() {
           },
           audio: true,
         });
+        setCameraMode("environment");
       }
       screenStreamRef.current = ms;
       setStream(ms);
@@ -515,9 +519,44 @@ function HostPage() {
     setStream(null);
     setCamOn(false);
     setMicOn(false);
+    setCameraMode(false);
     peersRef.current.forEach((pc) => pc.close());
     peersRef.current.clear();
     setViewerCount(0);
+  }
+
+  async function flipCamera() {
+    if (!cameraMode || !screenStreamRef.current) return;
+    const next: "user" | "environment" = cameraMode === "environment" ? "user" : "environment";
+    setFlipping(true);
+    setError(null);
+    try {
+      const preset = QUALITY_PRESETS[qualityRef.current];
+      const ms = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: next },
+          width: { ideal: preset.width ?? 1280 },
+          height: { ideal: preset.height ?? 720 },
+          frameRate: { ideal: preset.frameRate },
+        },
+        audio: true,
+      });
+      // Stop old tracks
+      screenStreamRef.current?.getTracks().forEach((t) => t.stop());
+      screenStreamRef.current = ms;
+      setStream(ms);
+      setCameraMode(next);
+      if (videoRef.current) {
+        videoRef.current.srcObject = ms;
+        videoRef.current.play().catch(() => {});
+      }
+      ms.getVideoTracks()[0].addEventListener("ended", stopSharing);
+      await renegotiateAll();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to flip camera");
+    } finally {
+      setFlipping(false);
+    }
   }
 
   async function toggleCam() {
@@ -729,6 +768,15 @@ function HostPage() {
                   icon="🔊"
                   disabled={!screenStreamRef.current?.getAudioTracks().length}
                 />
+                {cameraMode && (
+                  <ControlButton
+                    active={cameraMode === "user"}
+                    onClick={flipCamera}
+                    label={flipping ? "Flipping…" : cameraMode === "environment" ? "Back cam" : "Front cam"}
+                    icon="🔄"
+                    disabled={flipping}
+                  />
+                )}
                 <div className="flex items-center gap-1.5 rounded-xl bg-neutral-900 border border-neutral-800 px-2 py-1.5">
                   <span aria-hidden className="text-sm">⚙️</span>
                   <label htmlFor="quality" className="sr-only">Stream quality</label>
