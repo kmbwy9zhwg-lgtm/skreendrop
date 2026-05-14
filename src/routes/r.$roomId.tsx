@@ -55,8 +55,11 @@ function ViewerPage() {
   const [sharingScreen, setSharingScreen] = useState(false);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Viewer");
+  const [cameraFacing, setCameraFacing] = useState<"user" | "environment">("user");
   const micTrackRef = useRef<MediaStreamTrack | null>(null);
   const micSenderRef = useRef<RTCRtpSender | null>(null);
+  const camTrackRef = useRef<MediaStreamTrack | null>(null);
+  const camSenderRef = useRef<RTCRtpSender | null>(null);
   const viewerScreenStreamRef = useRef<MediaStream | null>(null);
   const viewerScreenSendersRef = useRef<RTCRtpSender[]>([]);
 
@@ -206,6 +209,12 @@ function ViewerPage() {
             new MediaStream([micTrackRef.current])
           );
         }
+        if (camTrackRef.current && !camSenderRef.current) {
+          camSenderRef.current = pc.addTrack(
+            camTrackRef.current,
+            new MediaStream([camTrackRef.current])
+          );
+        }
         if (viewerScreenStreamRef.current && viewerScreenSendersRef.current.length === 0) {
           viewerScreenSendersRef.current = viewerScreenStreamRef.current.getTracks().map((track) =>
             pc.addTrack(track, viewerScreenStreamRef.current!)
@@ -289,6 +298,41 @@ function ViewerPage() {
       }
     } catch (e) {
       console.warn(e);
+    }
+  }
+
+  async function flipCamera() {
+    // Stop current camera
+    if (camTrackRef.current) {
+      camSenderRef.current?.replaceTrack(null);
+      camTrackRef.current.stop();
+      camTrackRef.current = null;
+      camSenderRef.current = null;
+    }
+
+    // Switch facing mode
+    const newFacing: "user" | "environment" = cameraFacing === "user" ? "environment" : "user";
+    setCameraFacing(newFacing);
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: newFacing },
+      });
+      const videoTrack = stream.getVideoTracks()[0];
+      if (videoTrack) {
+        camTrackRef.current = videoTrack;
+        if (pcRef.current) {
+          camSenderRef.current = pcRef.current.addTrack(
+            videoTrack,
+            stream
+          );
+          await renegotiate();
+        }
+      }
+    } catch (e) {
+      console.warn("Camera flip failed:", e);
+      // Revert state if flip failed
+      setCameraFacing(cameraFacing);
     }
   }
 
@@ -495,7 +539,7 @@ function ViewerPage() {
             )}
 
             {/* Player controls */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/60 backdrop-blur rounded-full px-2 py-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition">
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/60 backdrop-blur rounded-full px-2 py-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
               <button
                 onClick={toggleMute}
                 className="px-3 py-1.5 rounded-full text-xs hover:bg-white/10"
@@ -516,7 +560,16 @@ function ViewerPage() {
                   className="px-3 py-1.5 rounded-full text-xs hover:bg-white/10"
                   title="Toggle webcam overlay"
                 >
-                  {showCam ? "Hide cam" : "Show cam"}
+                  {showCam ? "👁️ Hide cam" : "👁️ Show cam"}
+                </button>
+              )}
+              {micOn && (
+                <button
+                  onClick={flipCamera}
+                  className="px-3 py-1.5 rounded-full text-xs hover:bg-white/10"
+                  title="Flip camera"
+                >
+                  🔄 Flip
                 </button>
               )}
               <button
