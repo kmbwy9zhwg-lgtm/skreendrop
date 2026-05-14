@@ -768,6 +768,15 @@ function HostPage() {
                   icon="🔊"
                   disabled={!screenStreamRef.current?.getAudioTracks().length}
                 />
+                {cameraMode && (
+                  <ControlButton
+                    active={cameraMode === "user"}
+                    onClick={flipCamera}
+                    label={flipping ? "Flipping…" : cameraMode === "environment" ? "Back cam" : "Front cam"}
+                    icon="🔄"
+                    disabled={flipping}
+                  />
+                )}
                 <div className="flex items-center gap-1.5 rounded-xl bg-neutral-900 border border-neutral-800 px-2 py-1.5">
                   <span aria-hidden className="text-sm">⚙️</span>
                   <label htmlFor="quality" className="sr-only">Stream quality</label>
