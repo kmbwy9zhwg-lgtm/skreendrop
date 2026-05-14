@@ -293,18 +293,32 @@ function Home() {
           </button>
 
           <div>
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-3 mb-3">
               <span className="text-xs uppercase tracking-wide text-neutral-500">
                 Nearby devices
               </span>
-              <span className="relative flex h-2 w-2">
+              {/* Radar ripple */}
+              <span className="relative flex h-3 w-3 items-center justify-center">
                 <span
-                  className={`absolute inline-flex h-full w-full rounded-full ${
-                    networkReady ? "bg-emerald-400 animate-ping" : "bg-neutral-600"
-                  } opacity-75`}
+                  className={`absolute inline-flex h-3 w-3 rounded-full ${
+                    networkReady ? "bg-emerald-400/60" : "bg-neutral-600/40"
+                  } animate-ping`}
+                  style={{ animationDuration: "1.6s" }}
                 />
                 <span
-                  className={`relative inline-flex rounded-full h-2 w-2 ${
+                  className={`absolute inline-flex h-5 w-5 rounded-full ${
+                    networkReady ? "bg-emerald-400/30" : "bg-neutral-600/20"
+                  } animate-ping`}
+                  style={{ animationDuration: "2.4s", animationDelay: "0.4s" }}
+                />
+                <span
+                  className={`absolute inline-flex h-7 w-7 rounded-full ${
+                    networkReady ? "bg-emerald-400/15" : "bg-neutral-600/10"
+                  } animate-ping`}
+                  style={{ animationDuration: "3s", animationDelay: "0.8s" }}
+                />
+                <span
+                  className={`relative inline-flex h-2 w-2 rounded-full ${
                     networkReady ? "bg-emerald-500" : "bg-neutral-600"
                   }`}
                 />
