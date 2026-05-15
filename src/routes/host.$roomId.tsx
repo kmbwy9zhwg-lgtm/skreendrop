@@ -656,8 +656,14 @@ function HostPage() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
+  // Auto-open chat on desktop only (mobile would have it cover the whole UI)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+      setChatOpen(true);
+    }
+  }, []);
   const [unread, setUnread] = useState(0);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Host");
@@ -670,20 +676,20 @@ function HostPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-900">
-        <Link to="/" className="text-lg font-semibold tracking-tight">
+      <header className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-neutral-900">
+        <Link to="/" className="text-base sm:text-lg font-semibold tracking-tight shrink-0">
           Skreendrop
         </Link>
-        <div className="flex items-center gap-3 text-xs text-neutral-400">
-          <span className="font-mono">{roomId}</span>
-          <span>·</span>
-          <span>
-            <span className="text-white font-medium">{viewerCount}</span> viewer
-            {viewerCount === 1 ? "" : "s"}
+        <div className="flex items-center gap-1.5 sm:gap-3 text-xs text-neutral-400 min-w-0">
+          <span className="font-mono truncate max-w-[80px] sm:max-w-none">{roomId}</span>
+          <span className="hidden sm:inline">·</span>
+          <span className="whitespace-nowrap">
+            <span className="text-white font-medium">{viewerCount}</span>
+            <span className="hidden sm:inline"> viewer{viewerCount === 1 ? "" : "s"}</span>
           </span>
           <button
             onClick={() => setChatOpen((o) => !o)}
-            className="relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+            className="relative rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
           >
             Chat
             {unread > 0 && !chatOpen && (
@@ -694,15 +700,15 @@ function HostPage() {
           </button>
           <button
             onClick={() => setViewersOpen((o) => !o)}
-            className="lg:hidden relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+            className="lg:hidden relative rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
           >
             Viewers
           </button>
-          <HowItWorksButton className="ml-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700 text-xs text-neutral-200" label="How it works" />
+          <HowItWorksButton className="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700 text-xs text-neutral-200" label="How it works" />
         </div>
       </header>
 
-      <div className="flex-1 flex min-h-0">
+      <div className={`flex-1 flex min-h-0 transition-[padding] ${chatOpen ? "lg:pr-80" : ""}`}>
         <main className="flex-1 flex flex-col min-w-0 p-3 sm:p-4 gap-3">
           <h1 className="sr-only">Hosting a live screen share — room {roomId}</h1>
           <div className="flex flex-wrap gap-2">
@@ -816,96 +822,51 @@ function HostPage() {
           {error && <div className="text-sm text-red-400">{error}</div>}
         </main>
 
-        <div className="hidden lg:flex">
-          {viewersOpen && (
-            <aside className="w-48 bg-neutral-900 border-l border-neutral-800 flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-                <div className="text-sm font-medium">Viewers ({viewers.length})</div>
-                <button
-                  onClick={() => setViewersOpen(false)}
-                  className="text-neutral-400 hover:text-white text-sm"
-                  aria-label="Close viewers"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-3 py-3">
-                {viewers.length === 0 ? (
-                  <p className="text-xs text-neutral-500 text-center mt-4">
-                    No viewers yet
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {viewers.map((viewer) => (
-                      <div
-                        key={viewer.id}
-                        className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
-                      >
-                        {viewer.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </aside>
-          )}
-          <StreamChat
-            roomId={roomId}
-            selfId={selfId || "anon"}
-            selfName={selfName}
-            open={chatOpen}
-            onClose={() => setChatOpen(false)}
-            onUnread={setUnread}
-            canTag={true}
-            participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
-          />
-        </div>
       </div>
 
-      <div className="lg:hidden">
-        {viewersOpen && (
-          <aside className="fixed lg:static top-0 right-0 z-30 h-full w-full sm:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-              <div className="text-sm font-medium">Viewers ({viewers.length})</div>
-              <button
-                onClick={() => setViewersOpen(false)}
-                className="text-neutral-400 hover:text-white text-sm"
-                aria-label="Close viewers"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-3 py-3">
-              {viewers.length === 0 ? (
-                <p className="text-xs text-neutral-500 text-center mt-4">
-                  No viewers yet
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {viewers.map((viewer) => (
-                    <div
-                      key={viewer.id}
-                      className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
-                    >
-                      {viewer.name}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </aside>
-        )}
-        <StreamChat
-          roomId={roomId}
-          selfId={selfId || "anon"}
-          selfName={selfName}
-          open={chatOpen}
-          onClose={() => setChatOpen(false)}
-          onUnread={setUnread}
-          canTag={true}
-          participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
-        />
-      </div>
+      {viewersOpen && (
+        <aside className="fixed top-0 right-0 z-30 h-full w-full sm:w-80 bg-neutral-950 border-l border-neutral-800 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+            <div className="text-sm font-medium">Viewers ({viewers.length})</div>
+            <button
+              onClick={() => setViewersOpen(false)}
+              className="text-neutral-400 hover:text-white text-sm"
+              aria-label="Close viewers"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 py-3">
+            {viewers.length === 0 ? (
+              <p className="text-xs text-neutral-500 text-center mt-4">
+                No viewers yet
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {viewers.map((viewer) => (
+                  <div
+                    key={viewer.id}
+                    className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
+                  >
+                    {viewer.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
+
+      <StreamChat
+        roomId={roomId}
+        selfId={selfId || "anon"}
+        selfName={selfName}
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        onUnread={setUnread}
+        canTag={true}
+        participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
+      />
     </div>
   );
 }
