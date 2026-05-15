@@ -33,11 +33,14 @@ export const Route = createFileRoute("/host/$roomId")({
           "Hosting a live screen share session on Skreendrop. Invite viewers with a link — no signup, no install, full HD streaming in your browser.",
       },
       { name: "robots", content: "noindex, nofollow" },
-      { property: "og:title", content: `Live screen share · Skreendrop` },
+      { property: "og:title", content: "Live screen share · Skreendrop" },
       {
         property: "og:description",
         content: "Real-time browser screen sharing with chat, webcam overlay and adjustable quality.",
       },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: `https://skreendrop.lovable.app/host/${params.roomId}` },
+      { property: "og:image", content: "https://skreendrop.lovable.app/og-image.png" },
     ],
   }),
 });
@@ -701,10 +704,16 @@ function HostPage() {
 
       <div className="flex-1 flex min-h-0">
         <main className="flex-1 flex flex-col min-w-0 p-3 sm:p-4 gap-3">
+          <h1 className="sr-only">Hosting a live screen share — room {roomId}</h1>
           <div className="flex flex-wrap gap-2">
+            <label htmlFor="share-url" className="sr-only">
+              Share link for this room
+            </label>
             <input
+              id="share-url"
               readOnly
               value={shareUrl}
+              aria-label="Share link for this room"
               className="flex-1 min-w-0 rounded-lg bg-neutral-900 border border-neutral-800 px-3 py-2 text-sm font-mono"
             />
             <button

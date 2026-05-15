@@ -243,9 +243,11 @@ function Home() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         <header className="mb-8 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">Skreendrop</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Skreendrop — Instant browser screen sharing
+          </h1>
           <p className="text-sm text-neutral-500 mt-2">
-            Instant browser screen sharing
+            Share your screen, webcam and audio in seconds. No signup, no install.
           </p>
           <div className="mt-3 flex justify-center">
             <HowItWorksButton />
@@ -260,12 +262,17 @@ function Home() {
                 }}
                 className="flex items-center gap-2"
               >
+                <label htmlFor="device-name" className="sr-only">
+                  Your device name
+                </label>
                 <input
+                  id="device-name"
                   autoFocus
                   value={nameDraft}
                   onChange={(e) => setNameDraft(e.target.value)}
                   onBlur={saveName}
                   maxLength={32}
+                  aria-label="Your device name"
                   className="rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 text-sm w-40 outline-none focus:border-neutral-500"
                 />
               </form>
@@ -298,9 +305,9 @@ function Home() {
 
           <div>
             <div className="flex items-center gap-3 mb-3">
-              <span className="text-xs uppercase tracking-wide text-neutral-500">
+              <h2 className="text-xs uppercase tracking-wide text-neutral-500 font-normal m-0">
                 Nearby devices
-              </span>
+              </h2>
               {/* Radar ripple */}
               <span className="relative flex h-3 w-3 items-center justify-center">
                 <span
@@ -438,10 +445,15 @@ function Home() {
               if (id) navigate({ to: "/r/$roomId", params: { roomId: id } });
             }}
           >
+            <label htmlFor="room-code" className="sr-only">
+              Room code
+            </label>
             <input
+              id="room-code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="Room code"
+              aria-label="Room code"
               className="flex-1 rounded-xl bg-neutral-800 border border-neutral-700 px-4 py-3 outline-none focus:border-neutral-500 text-sm"
             />
             <button className="px-5 rounded-xl bg-neutral-800 border border-neutral-700 hover:bg-neutral-700 text-sm">
