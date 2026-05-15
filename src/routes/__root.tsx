@@ -72,16 +72,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Skreendrop" },
-      { name: "description", content: "Skreendrop is a fast, private, browser-based screen sharing app that lets you instantly share your screen and audio with nearby devices or remote viewers" },
-      { property: "og:title", content: "Skreendrop" },
-      { property: "og:description", content: "Skreendrop is a fast, private, browser-based screen sharing app that lets you instantly share your screen and audio with nearby devices or remote viewers" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:title", content: "Skreendrop" },
-      { name: "twitter:description", content: "Skreendrop is a fast, private, browser-based screen sharing app that lets you instantly share your screen and audio with nearby devices or remote viewers" },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/WA9XmTmOeHgssWN6p57jivxf53c2/social-images/social-1778660972752-download_(1).webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/WA9XmTmOeHgssWN6p57jivxf53c2/social-images/social-1778660972752-download_(1).webp" },
+      { property: "og:site_name", content: "Skreendrop" },
     ],
     links: [
       {

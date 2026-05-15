@@ -1,0 +1,15 @@
+# Skreendrop
+
+> Free, no-signup browser screen sharing with HD live streaming, live chat, webcam overlay and adjustable quality. Works peer-to-peer over WebRTC — share your screen with anyone via a simple link.
+
+Skreendrop runs entirely in the browser. There is nothing to install or sign up for. Hosts share their screen (or back camera on mobile), and viewers join through a short room link to watch and chat in real time.
+
+## Pages
+
+- [Home](/): Start a screen share, join a room by code, or pick a nearby device on the same network.
+- [Free screen sharing](/free-screen-sharing): Overview of features, how it works and FAQ for free browser-based screen sharing.
+
+## Optional
+
+- [Sitemap](/sitemap.xml): Machine-readable list of indexable pages.
+- [Robots](/robots.txt): Crawler rules.

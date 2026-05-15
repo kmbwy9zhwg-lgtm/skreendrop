@@ -7,14 +7,11 @@ export const Route = createFileRoute("/free-screen-sharing")({
   component: LandingPage,
   head: () => ({
     meta: [
-      {
-        title:
-          "Free Screen Sharing in Your Browser — No Signup, HD Streaming | Skreendrop",
-      },
+      { title: "Free Screen Sharing in Your Browser · Skreendrop" },
       {
         name: "description",
         content:
-          "Skreendrop is the fastest free way to share your screen online. HD live streaming, chat, webcam overlay, adjustable quality — all in your browser, no signup or download.",
+          "Free HD screen sharing in your browser. No signup, no install — share your screen with anyone via a link, with live chat and adjustable quality.",
       },
       {
         name: "keywords",
