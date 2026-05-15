@@ -822,96 +822,51 @@ function HostPage() {
           {error && <div className="text-sm text-red-400">{error}</div>}
         </main>
 
-        <div className="hidden lg:flex">
-          {viewersOpen && (
-            <aside className="w-48 bg-neutral-900 border-l border-neutral-800 flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-                <div className="text-sm font-medium">Viewers ({viewers.length})</div>
-                <button
-                  onClick={() => setViewersOpen(false)}
-                  className="text-neutral-400 hover:text-white text-sm"
-                  aria-label="Close viewers"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-3 py-3">
-                {viewers.length === 0 ? (
-                  <p className="text-xs text-neutral-500 text-center mt-4">
-                    No viewers yet
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {viewers.map((viewer) => (
-                      <div
-                        key={viewer.id}
-                        className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
-                      >
-                        {viewer.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </aside>
-          )}
-          <StreamChat
-            roomId={roomId}
-            selfId={selfId || "anon"}
-            selfName={selfName}
-            open={chatOpen}
-            onClose={() => setChatOpen(false)}
-            onUnread={setUnread}
-            canTag={true}
-            participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
-          />
-        </div>
       </div>
 
-      <div className="lg:hidden">
-        {viewersOpen && (
-          <aside className="fixed lg:static top-0 right-0 z-30 h-full w-full sm:w-80 bg-neutral-950 lg:bg-neutral-900 border-l border-neutral-800 flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-              <div className="text-sm font-medium">Viewers ({viewers.length})</div>
-              <button
-                onClick={() => setViewersOpen(false)}
-                className="text-neutral-400 hover:text-white text-sm"
-                aria-label="Close viewers"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-3 py-3">
-              {viewers.length === 0 ? (
-                <p className="text-xs text-neutral-500 text-center mt-4">
-                  No viewers yet
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {viewers.map((viewer) => (
-                    <div
-                      key={viewer.id}
-                      className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
-                    >
-                      {viewer.name}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </aside>
-        )}
-        <StreamChat
-          roomId={roomId}
-          selfId={selfId || "anon"}
-          selfName={selfName}
-          open={chatOpen}
-          onClose={() => setChatOpen(false)}
-          onUnread={setUnread}
-          canTag={true}
-          participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
-        />
-      </div>
+      {viewersOpen && (
+        <aside className="fixed top-0 right-0 z-30 h-full w-full sm:w-80 bg-neutral-950 border-l border-neutral-800 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
+            <div className="text-sm font-medium">Viewers ({viewers.length})</div>
+            <button
+              onClick={() => setViewersOpen(false)}
+              className="text-neutral-400 hover:text-white text-sm"
+              aria-label="Close viewers"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 py-3">
+            {viewers.length === 0 ? (
+              <p className="text-xs text-neutral-500 text-center mt-4">
+                No viewers yet
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {viewers.map((viewer) => (
+                  <div
+                    key={viewer.id}
+                    className="text-sm text-neutral-100 bg-neutral-800 rounded-lg px-3 py-2"
+                  >
+                    {viewer.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </aside>
+      )}
+
+      <StreamChat
+        roomId={roomId}
+        selfId={selfId || "anon"}
+        selfName={selfName}
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        onUnread={setUnread}
+        canTag={true}
+        participants={[selfName, ...viewers.map((viewer) => viewer.name)]}
+      />
     </div>
   );
 }
