@@ -605,13 +605,16 @@ export default function StreamChat({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach a file"
+            title="Attach a file"
             className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
           >
-            📎
+            <span aria-hidden>📎</span>
           </button>
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
+            aria-label={isRecording ? "Stop voice recording" : "Record voice message"}
             className={`px-3 rounded-lg text-sm ${
               isRecording
                 ? "bg-red-500 text-white animate-pulse"
@@ -619,7 +622,7 @@ export default function StreamChat({
             }`}
             title={isRecording ? "Stop recording" : "Record voice message"}
           >
-            🎤
+            <span aria-hidden>🎤</span>
           </button>
           <button
             type="button"
@@ -656,10 +659,11 @@ export default function StreamChat({
                 });
               }
             }}
+            aria-label="Save screenshot of the stream"
             className="px-3 rounded-lg bg-neutral-800 border border-neutral-700 text-sm text-neutral-100 hover:bg-neutral-700"
             title="Save screenshot and copy to clipboard"
           >
-            📸
+            <span aria-hidden>📸</span>
           </button>
           {canTag && replyTo && (
             <div className="flex items-center gap-1">
@@ -695,10 +699,15 @@ export default function StreamChat({
           )}
         </div>
         <div className="flex gap-2">
+          <label htmlFor="chat-message" className="sr-only">
+            Chat message
+          </label>
           <input
+            id="chat-message"
             value={text}
             onChange={(e) => onChange(e.target.value)}
             placeholder="Message… (use @name to tag)"
+            aria-label="Chat message"
             maxLength={500}
             className="flex-1 rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm outline-none focus:border-neutral-500"
           />

@@ -22,6 +22,9 @@ export const Route = createFileRoute("/r/$roomId")({
         property: "og:description",
         content: "Tap to join a live browser screen sharing session with chat and HD streaming.",
       },
+      { property: "og:type", content: "website" },
+      { property: "og:url", content: `https://skreendrop.lovable.app/r/${params.roomId}` },
+      { property: "og:image", content: "https://skreendrop.lovable.app/og-image.png" },
     ],
   }),
 });
@@ -503,6 +506,7 @@ function ViewerPage() {
 
       <div className="flex-1 flex min-h-0">
         <main className="flex-1 flex flex-col min-w-0 p-3 sm:p-4">
+          <h1 className="sr-only">Watching live screen share — room {roomId}</h1>
           <div
             ref={containerRef}
             className="relative bg-black rounded-xl overflow-hidden flex-1 flex items-center justify-center group"
