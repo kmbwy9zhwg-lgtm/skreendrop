@@ -676,20 +676,20 @@ function HostPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-900">
-        <Link to="/" className="text-lg font-semibold tracking-tight">
+      <header className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-neutral-900">
+        <Link to="/" className="text-base sm:text-lg font-semibold tracking-tight shrink-0">
           Skreendrop
         </Link>
-        <div className="flex items-center gap-3 text-xs text-neutral-400">
-          <span className="font-mono">{roomId}</span>
-          <span>·</span>
-          <span>
-            <span className="text-white font-medium">{viewerCount}</span> viewer
-            {viewerCount === 1 ? "" : "s"}
+        <div className="flex items-center gap-1.5 sm:gap-3 text-xs text-neutral-400 min-w-0">
+          <span className="font-mono truncate max-w-[80px] sm:max-w-none">{roomId}</span>
+          <span className="hidden sm:inline">·</span>
+          <span className="whitespace-nowrap">
+            <span className="text-white font-medium">{viewerCount}</span>
+            <span className="hidden sm:inline"> viewer{viewerCount === 1 ? "" : "s"}</span>
           </span>
           <button
             onClick={() => setChatOpen((o) => !o)}
-            className="relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+            className="relative rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
           >
             Chat
             {unread > 0 && !chatOpen && (
@@ -700,11 +700,11 @@ function HostPage() {
           </button>
           <button
             onClick={() => setViewersOpen((o) => !o)}
-            className="lg:hidden relative ml-2 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
+            className="lg:hidden relative rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700"
           >
             Viewers
           </button>
-          <HowItWorksButton className="ml-2 inline-flex items-center gap-1.5 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700 text-xs text-neutral-200" label="How it works" />
+          <HowItWorksButton className="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-neutral-800 border border-neutral-700 px-2 py-1 hover:bg-neutral-700 text-xs text-neutral-200" label="How it works" />
         </div>
       </header>
 
