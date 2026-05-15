@@ -656,8 +656,14 @@ function HostPage() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  const [chatOpen, setChatOpen] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
   const [viewersOpen, setViewersOpen] = useState(false);
+  // Auto-open chat on desktop only (mobile would have it cover the whole UI)
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+      setChatOpen(true);
+    }
+  }, []);
   const [unread, setUnread] = useState(0);
   const [selfId, setSelfId] = useState("");
   const [selfName, setSelfName] = useState("Host");
