@@ -708,7 +708,7 @@ function HostPage() {
         </div>
       </header>
 
-      <div className="flex-1 flex min-h-0">
+      <div className={`flex-1 flex min-h-0 transition-[padding] ${chatOpen ? "lg:pr-80" : ""}`}>
         <main className="flex-1 flex flex-col min-w-0 p-3 sm:p-4 gap-3">
           <h1 className="sr-only">Hosting a live screen share — room {roomId}</h1>
           <div className="flex flex-wrap gap-2">
